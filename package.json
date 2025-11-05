@@ -1,0 +1,34 @@
+{
+  "name": "slm_app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SLM Chat Application with MySQL database integration",
+  "scripts": {
+    "dev": "next dev -p 5000",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db:init": "tsx scripts/initDb.ts",
+    "db:restore": "tsx scripts/restoreBackup.ts",
+    "db:check": "tsx scripts/checkMySQL.ts",
+    "db:analyze": "tsx scripts/analyzeBackup.ts"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "mysql2": "^3.15.3",
+    "next": "16.0.1",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.0.1",
+    "tailwindcss": "^4",
+    "tsx": "^4.20.6",
+    "typescript": "^5"
+  }
+}
