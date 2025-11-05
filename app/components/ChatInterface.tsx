@@ -17,13 +17,20 @@ export default function ChatInterface() {
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<null | HTMLDivElement>(null);
+  const hasInitialized = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
-    scrollToBottom();
+    // Only scroll to bottom after the first message is added
+    if (messages.length > 0 && hasInitialized.current) {
+      scrollToBottom();
+    } else if (messages.length > 0 && !hasInitialized.current) {
+      // Mark as initialized after the first message
+      hasInitialized.current = true;
+    }
   }, [messages]);
 
   // Parse and format data responses
