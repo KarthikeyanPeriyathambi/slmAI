@@ -34,7 +34,9 @@ export async function POST(request: NextRequest) {
       'customer', 'account', 'product', 'bill', 'supplier', 'data', 
       'record', 'information', 'week', 'month', 'today', 'yesterday',
       'show tables', 'select', 'from', 'where', 'count', 'sum', 'avg',
-      'added', 'created', 'updated', 'modified', 'recent', 'latest'
+      'added', 'created', 'updated', 'modified', 'recent', 'latest',
+      'stock', 'price', 'mrp', 'retail', 'category', 'out of stock',
+      'low stock', 'inventory', 'sales', 'orders', 'transactions'
     ];
     
     // Enhanced detection logic with better pattern matching
@@ -49,11 +51,26 @@ export async function POST(request: NextRequest) {
                              (userContent.includes('this') || userContent.includes('last') || userContent.includes('recent'));
     
     // Additional validation to reduce false positives
-    const nonDatabasePhrases = ['weather', 'news', 'joke', 'recipe', 'movie', 'song'];
+    const nonDatabasePhrases = [
+      'weather', 'news', 'joke', 'recipe', 'movie', 'song', 'react', 'javascript', 
+      'python', 'java', 'css', 'html', 'framework', 'library', 'programming',
+      'code', 'development', 'software', 'application', 'app', 'web', 'design',
+      'tutorial', 'learn', 'teach', 'explain', 'definition', 'meaning'
+    ];
     const isNonDatabaseQuery = nonDatabasePhrases.some(phrase => userContent.includes(phrase));
     
     console.log("Is database query:", isDatabaseQuery);
     console.log("Is non-database query:", isNonDatabaseQuery);
+    
+    // If it's not a database query, provide a friendly response
+    if (!isDatabaseQuery || isNonDatabaseQuery) {
+      return new Response(
+        JSON.stringify({ 
+          response: "I'm designed to help you query your database. I can help you find products, check stock levels, list customers, view sales data, and more. Try asking something like:\n\n• Show me 5 products\n• List customers with low stock items\n• What products have MRP less than 20?\n• Show me recent transactions\n\nWhat database information would you like to explore?" 
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
     
     if (isDatabaseQuery && !isNonDatabaseQuery) {
       console.log("Handling as natural language database query");
@@ -452,9 +469,93 @@ Respond ONLY with SQL.`;
       );
     }
     
+    // Format results in a more user-friendly way
+    let formattedResponse = "";
+    
+    if (Array.isArray(results) && results.length > 0) {
+      // For count queries (single row with single column)
+      if (results.length === 1 && Object.keys(results[0]).length === 1) {
+        const value = Object.values(results[0])[0];
+        const key = Object.keys(results[0])[0];
+        formattedResponse = `I found ${value} ${key.replace(/_/g, ' ')}.`;
+      }
+      // For small result sets (5 or fewer), format them as a concise list
+      else if (results.length <= 5) {
+        formattedResponse = "I found the following data:\n\n";
+        results.forEach((row: any, index) => {
+          formattedResponse += `${index + 1}. `;
+          const entries = Object.entries(row);
+          
+          // Identify important fields based on common patterns
+          const priorityPatterns = [
+            'id', 'name', 'title', 'description', 'price', 'cost', 'mrp', 'amount',
+            'stock', 'quantity', 'count', 'status', 'type', 'category'
+          ];
+          
+          // Find priority fields (case insensitive)
+          const priorityEntries = entries.filter(([key]) => 
+            priorityPatterns.some(pattern => 
+              key.toLowerCase().includes(pattern)
+            )
+          );
+          
+          // If we found priority fields, use up to 4 of them
+          if (priorityEntries.length > 0) {
+            const displayEntries = priorityEntries.slice(0, Math.min(4, priorityEntries.length));
+            formattedResponse += displayEntries.map(([key, value]) => `${key}: ${value}`).join(", ") + "\n";
+          } else if (entries.length <= 3) {
+            // For other data with few columns, show all
+            formattedResponse += entries.map(([key, value]) => `${key}: ${value}`).join(", ") + "\n";
+          } else {
+            // For data with many columns, show first 3
+            const firstThree = entries.slice(0, 3);
+            formattedResponse += firstThree.map(([key, value]) => `${key}: ${value}`).join(", ") + "\n";
+          }
+        });
+      }
+      // For larger result sets, provide a summary with sample data
+      else {
+        formattedResponse = `I found ${results.length} records matching your query. Here are the first 3 results:\n\n`;
+        results.slice(0, 3).forEach((row: any, index) => {
+          formattedResponse += `${index + 1}. `;
+          
+          // Identify important fields based on common patterns
+          const entries = Object.entries(row);
+          const priorityPatterns = [
+            'id', 'name', 'title', 'description', 'price', 'cost', 'mrp', 'amount',
+            'stock', 'quantity', 'count', 'status', 'type', 'category'
+          ];
+          
+          // Find priority fields (case insensitive)
+          const priorityEntries = entries.filter(([key]) => 
+            priorityPatterns.some(pattern => 
+              key.toLowerCase().includes(pattern)
+            )
+          );
+          
+          // If we found priority fields, use up to 4 of them
+          if (priorityEntries.length > 0) {
+            const displayEntries = priorityEntries.slice(0, Math.min(4, priorityEntries.length));
+            formattedResponse += displayEntries.map(([key, value]) => `${key}: ${value}`).join(", ") + "\n";
+          } else {
+            // For other data, show first 3 columns
+            const firstThree = entries.slice(0, 3);
+            formattedResponse += firstThree.map(([key, value]) => `${key}: ${value}`).join(", ") + "\n";
+          }
+        });
+        
+        if (results.length > 3) {
+          formattedResponse += `\n... and ${results.length - 3} more records.`;
+        }
+      }
+    } else {
+      formattedResponse = "I found no data matching your query.";
+    }
+    
     return new Response(
       JSON.stringify({ 
-        response: `I found the following data:\n\n${formattedResults}` 
+        response: formattedResponse,
+        data: results
       }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );

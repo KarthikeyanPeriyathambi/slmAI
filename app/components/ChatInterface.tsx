@@ -1,196 +1,3 @@
-// "use client";
-
-// import { useState, useRef, useEffect } from "react";
-
-// interface Message {
-//   id: string;
-//   content: string;
-//   role: "user" | "assistant";
-//   timestamp: Date;
-// }
-
-// export default function ChatInterface() {
-//   const [messages, setMessages] = useState<Message[]>([]);
-//   const [inputValue, setInputValue] = useState("");
-//   const [isLoading, setIsLoading] = useState(false);
-//   const messagesEndRef = useRef<null | HTMLDivElement>(null);
-
-//   const scrollToBottom = () => {
-//     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-//   };
-
-//   useEffect(() => {
-//     scrollToBottom();
-//   }, [messages]);
-
-//   const handleSubmit = async (e: React.FormEvent) => {
-//     e.preventDefault();
-//     if (!inputValue.trim() || isLoading) return;
-
-//     // Add user message
-//     const userMessage: Message = {
-//       id: Date.now().toString(),
-//       content: inputValue,
-//       role: "user",
-//       timestamp: new Date(),
-//     };
-
-//     setMessages((prev) => [...prev, userMessage]);
-//     setInputValue("");
-//     setIsLoading(true);
-
-//     try {
-//       // Call the SLM API
-//       const response = await fetch("/api/chat", {
-//         method: "POST",
-//         headers: {
-//           "Content-Type": "application/json",
-//         },
-//         body: JSON.stringify({
-//           messages: [...messages, userMessage],
-//         }),
-//       });
-
-//       if (!response.ok) {
-//         throw new Error(`HTTP error! status: ${response.status}`);
-//       }
-
-//       const data = await response.json();
-      
-//       // Add assistant message
-//       const assistantMessage: Message = {
-//         id: (Date.now() + 1).toString(),
-//         content: data.response,
-//         role: "assistant",
-//         timestamp: new Date(),
-//       };
-
-//       setMessages((prev) => [...prev, assistantMessage]);
-//     } catch (error) {
-//       console.error("Error:", error);
-//       const errorMessage: Message = {
-//         id: (Date.now() + 1).toString(),
-//         content: "Sorry, I encountered an error. Please try again.",
-//         role: "assistant",
-//         timestamp: new Date(),
-//       };
-//       setMessages((prev) => [...prev, errorMessage]);
-//     } finally {
-//       setIsLoading(false);
-//     }
-//   };
-
-//   const handleKeyDown = (e: React.KeyboardEvent) => {
-//     if (e.key === "Enter" && !e.shiftKey) {
-//       e.preventDefault();
-//       handleSubmit(e as any);
-//     }
-//   };
-
-//   return (
-//     <div className="flex flex-col h-screen max-w-4xl mx-auto w-full">
-//       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-//         {messages.length === 0 ? (
-//           <div className="flex flex-col items-center justify-center h-full text-center">
-//             <div className="bg-gray-200 dark:bg-gray-700 border-2 border-dashed rounded-xl w-16 h-16 mb-4" />
-//             <h1 className="text-3xl font-bold mb-4">SLM Chat</h1>
-//             <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
-//               Start a conversation with the SLM AI assistant
-//             </p>
-//             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl w-full">
-//               <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
-//                 <h3 className="font-semibold mb-2">Examples</h3>
-//                 <ul className="text-left text-sm text-gray-600 dark:text-gray-400 space-y-1">
-//                   <li>"Explain quantum computing"</li>
-//                   <li>"How do I make an HTTP request?"</li>
-//                   <li>"Show me all customers"</li>
-//                   <li>"List products added this week"</li>
-//                 </ul>
-//               </div>
-//               <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
-//                 <h3 className="font-semibold mb-2">Capabilities</h3>
-//                 <ul className="text-left text-sm text-gray-600 dark:text-gray-400 space-y-1">
-//                   <li>Answer questions accurately</li>
-//                   <li>Generate creative content</li>
-//                   <li>Query your database in natural language</li>
-//                   <li>Assist with coding tasks</li>
-//                 </ul>
-//               </div>
-//             </div>
-//           </div>
-//         ) : (
-//           messages.map((message) => (
-//             <div
-//               key={message.id}
-//               className={`flex ${
-//                 message.role === "user" ? "justify-end" : "justify-start"
-//               }`}
-//             >
-//               <div
-//                 className={`max-w-[80%] rounded-lg p-4 ${
-//                   message.role === "user"
-//                     ? "bg-blue-500 text-white"
-//                     : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white"
-//                 }`}
-//               >
-//                 <div className="whitespace-pre-wrap">{message.content}</div>
-//                 <div
-//                   className={`text-xs mt-1 ${
-//                     message.role === "user"
-//                       ? "text-blue-100"
-//                       : "text-gray-500 dark:text-gray-400"
-//                   }`}
-//                 >
-//                   {message.timestamp.toLocaleTimeString([], {
-//                     hour: "2-digit",
-//                     minute: "2-digit",
-//                   })}
-//                 </div>
-//               </div>
-//             </div>
-//           ))
-//         )}
-//         {isLoading && (
-//           <div className="flex justify-start">
-//             <div className="bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg p-4">
-//               <div className="flex space-x-2">
-//                 <div className="w-2 h-2 rounded-full bg-gray-500 animate-bounce"></div>
-//                 <div className="w-2 h-2 rounded-full bg-gray-500 animate-bounce delay-75"></div>
-//                 <div className="w-2 h-2 rounded-full bg-gray-500 animate-bounce delay-150"></div>
-//               </div>
-//             </div>
-//           </div>
-//         )}
-//         <div ref={messagesEndRef} />
-//       </div>
-
-//       <form onSubmit={handleSubmit} className="border-t border-gray-200 dark:border-gray-800 p-4">
-//         <div className="flex gap-2">
-//           <textarea
-//             value={inputValue}
-//             onChange={(e) => setInputValue(e.target.value)}
-//             onKeyDown={handleKeyDown}
-//             placeholder="Type your message... (Try: 'Show me all customers' or 'List products added this week')"
-//             className="flex-1 border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-black dark:text-white resize-none"
-//             disabled={isLoading}
-//             rows={1}
-//           />
-//           <button
-//             type="submit"
-//             className="bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-4 py-2 disabled:opacity-50 self-end h-fit"
-//             disabled={isLoading || !inputValue.trim()}
-//           >
-//             Send
-//           </button>
-//         </div>
-//         <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
-//           SLM AI can make mistakes. Consider checking important information.
-//         </div>
-//       </form>
-//     </div>
-//   );
-// }
-
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -221,63 +28,153 @@ export default function ChatInterface() {
 
   // Parse and format data responses
   const formatDataResponse = (content: string, data: any) => {
-    if (Array.isArray(data)) {
-      return (
-        <div className="space-y-3">
-          <div className="text-sm text-green-600 dark:text-green-400 font-medium">
-            {content}
-          </div>
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-            <div className="bg-gray-50 dark:bg-gray-900 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center gap-2 text-xs font-semibold text-gray-600 dark:text-gray-400">
-                <Database size={14} />
-                <span>QUERY RESULTS ({data.length} records)</span>
+    // If we have formatted data from the API, display it nicely
+    if (content.includes("I found the following data:") && data) {
+      // Check if it's a simple count result
+      if (Array.isArray(data) && data.length === 1 && Object.keys(data[0]).length === 1) {
+        const value = Object.values(data[0])[0];
+        const key = Object.keys(data[0])[0];
+        return (
+          <div className="space-y-3">
+            <div className="text-sm text-green-600 dark:text-green-400 font-medium">
+              Query Result:
+            </div>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+              <div className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+                {String(value)}
+              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                {key.replace(/_/g, ' ')}
               </div>
             </div>
-            <div className="max-h-96 overflow-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-25 dark:bg-gray-850">
-                  <tr>
-                    {Object.keys(data[0] || {}).map((key) => (
-                      <th
-                        key={key}
-                        className="text-left p-3 font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700"
-                      >
-                        {key.toUpperCase()}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
+          </div>
+        );
+      }
+      
+      // For product lists and other structured data - show only important columns
+      if (Array.isArray(data)) {
+        // Define important columns for different table types based on common patterns
+        const getImportantColumns = (sampleRow: any) => {
+          const columns = Object.keys(sampleRow);
+          
+          // Prioritize common important column patterns
+          const priorityPatterns = [
+            'id', 'name', 'title', 'description', 'price', 'cost', 'mrp', 'amount',
+            'stock', 'quantity', 'count', 'status', 'type', 'category'
+          ];
+          
+          // Find columns that match priority patterns (case insensitive)
+          const priorityColumns = columns.filter(col => 
+            priorityPatterns.some(pattern => 
+              col.toLowerCase().includes(pattern)
+            )
+          );
+          
+          // If we found priority columns, use up to 4 of them
+          if (priorityColumns.length > 0) {
+            return priorityColumns.slice(0, Math.min(4, priorityColumns.length));
+          }
+          
+          // Fallback: use first 3-4 columns
+          return columns.slice(0, Math.min(4, columns.length));
+        };
+        
+        const importantColumns = data.length > 0 ? getImportantColumns(data[0]) : [];
+        
+        return (
+          <div className="space-y-3">
+            <div className="text-sm text-green-600 dark:text-green-400 font-medium">
+              Query Results ({data.length} records):
+            </div>
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              <div className="max-h-96 overflow-auto custom-scrollbar">
+                <div className="divide-y divide-gray-200 dark:divide-gray-700">
                   {data.map((row: any, index: number) => (
-                    <tr
-                      key={index}
-                      className={index % 2 === 0 ? "bg-white dark:bg-gray-800" : "bg-gray-50 dark:bg-gray-900"}
-                    >
-                      {Object.values(row).map((value: any, cellIndex) => (
-                        <td
-                          key={cellIndex}
-                          className="p-3 border-b border-gray-100 dark:border-gray-800 text-gray-600 dark:text-gray-400"
-                        >
-                          {value === null ? (
-                            <span className="text-gray-400 dark:text-gray-500 italic">null</span>
-                          ) : typeof value === "object" ? (
-                            JSON.stringify(value)
-                          ) : (
-                            String(value)
-                          )}
-                        </td>
-                      ))}
-                    </tr>
+                    <div key={index} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-900">
+                      <div className="grid grid-cols-1 gap-2">
+                        {importantColumns.map((col) => (
+                          <div key={col} className="flex">
+                            <span className="font-medium text-gray-700 dark:text-gray-300 w-full">
+                              {col.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:
+                            </span>
+                            <span className="text-gray-600 dark:text-gray-400 ml-2">
+                              {row[col] === null ? (
+                                <span className="text-gray-400 dark:text-gray-500 italic">null</span>
+                              ) : (
+                                String(row[col])
+                              )}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      );
+        );
+      }
     }
-    return content;
+    
+    // For text-based responses from the AI
+    if (content.includes("I found the following data:") && !data) {
+      // Try to parse the content to see if it's JSON
+      try {
+        const lines = content.split('\n');
+        if (lines.length > 2) {
+          // Remove the first two lines ("I found the following data:" and empty line)
+          const dataLines = lines.slice(2);
+          
+          // Check if it's a table format
+          if (dataLines[1] && dataLines[1].includes('---')) {
+            // Table format detected
+            const headers = dataLines[0].split(' | ').map(h => h.trim());
+            const rows = dataLines.slice(2).map(row => row.split(' | ').map(cell => cell.trim()));
+            
+            // Show only first 3 columns for concise display
+            const displayHeaders = headers.slice(0, 3);
+            const displayRows = rows.map(row => row.slice(0, 3));
+            
+            return (
+              <div className="space-y-3">
+                <div className="text-sm text-green-600 dark:text-green-400 font-medium">
+                  Query Results:
+                </div>
+                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                  <div className="max-h-96 overflow-auto custom-scrollbar">
+                    <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {displayRows.map((row, rowIndex) => (
+                        <div key={rowIndex} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-900">
+                          <div className="grid grid-cols-1 gap-2">
+                            {displayHeaders.map((header, index) => (
+                              <div key={index} className="flex">
+                                <span className="font-medium text-gray-700 dark:text-gray-300 w-full">
+                                  {header}:
+                                </span>
+                                <span className="text-gray-600 dark:text-gray-400 ml-2">
+                                  {row[index]}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+        }
+      } catch (e) {
+        // If parsing fails, fall back to plain text
+        return <div className="whitespace-pre-wrap">{content}</div>;
+      }
+    }
+    
+    // Default fallback
+    return <div className="whitespace-pre-wrap">{content}</div>;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -355,27 +252,8 @@ export default function ChatInterface() {
   ];
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-blue-900">
-      {/* Header */}
-      {/* <div className="border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-2 rounded-xl">
-              <Sparkles className="text-white" size={24} />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Database AI Assistant
-              </h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Intelligent querying for your business data
-              </p>
-            </div>
-          </div>
-        </div>
-      </div> */}
-
-      <div className="flex-1 overflow-hidden max-w-6xl mx-auto w-full flex">
+    <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-blue-900"> 
+      <div className="max-w-[80%] mx-auto flex-1 overflow-hidden  w-full flex">
         {/* Sidebar */}
         <div className="w-80 border-r border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-900/50 p-6 hidden lg:block">
           <div className="space-y-6">
@@ -414,7 +292,7 @@ export default function ChatInterface() {
 
         {/* Main Chat Area */}
         <div className="flex-1 flex flex-col">
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center space-y-8">
                 <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-8 rounded-3xl shadow-2xl">
@@ -459,18 +337,28 @@ export default function ChatInterface() {
                     <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
                       <li className="flex items-center gap-2">
                         <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                        Table formatting
+                        Natural language queries
                       </li>
                       <li className="flex items-center gap-2">
                         <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                        Real-time filtering
+                        Intelligent data filtering
                       </li>
                       <li className="flex items-center gap-2">
                         <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
-                        Export ready data
+                        Formatted results
                       </li>
                     </ul>
                   </div>
+                </div>
+                
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-6 border border-blue-200 dark:border-blue-800 max-w-2xl">
+                  <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-3 flex items-center gap-2">
+                    <Bot size={16} />
+                    Note
+                  </h4>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    This application is designed specifically for database queries. Ask about products, customers, inventory, sales, or other business data to get started.
+                  </p>
                 </div>
               </div>
             ) : (
@@ -549,8 +437,8 @@ export default function ChatInterface() {
           </div>
 
           {/* Input Area */}
-          <div className="border-t border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm p-6">
-            <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
+          <div className="backdrop-blur-sm p-6">
+            <form onSubmit={handleSubmit} className="w-full">
               <div className="flex gap-3">
                 <div className="flex-1 relative">
                   <textarea
@@ -567,10 +455,11 @@ export default function ChatInterface() {
                     }}
                   />
                 </div>
+                <div>
                 <button
                   type="submit"
                   disabled={isLoading || !inputValue.trim()}
-                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 text-white rounded-2xl px-6 py-4 transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2 self-end h-fit"
+                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-2xl px-6 py-4 transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2 self-end h-fit"
                 >
                   {isLoading ? (
                     <Loader2 size={16} className="animate-spin" />
@@ -579,6 +468,7 @@ export default function ChatInterface() {
                   )}
                   Send
                 </button>
+                </div>
               </div>
               <div className="flex items-center justify-center gap-4 mt-3 text-xs text-gray-500 dark:text-gray-400">
                 <span>• Natural language queries</span>

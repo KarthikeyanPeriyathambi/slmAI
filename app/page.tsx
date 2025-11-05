@@ -103,7 +103,7 @@ export default function Home() {
     <div className="flex min-h-screen flex-col bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-blue-900">
       {/* Enhanced Header */}
       <header className="border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto px-6 py-4">
+        <div className="max-w-[80%] mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-2 rounded-xl">
