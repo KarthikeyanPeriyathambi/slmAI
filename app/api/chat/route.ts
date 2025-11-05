@@ -225,13 +225,28 @@ async function handleNaturalLanguageQuery(userQuery: string, conversationHistory
       })
       .join('\n');
 
-    // Enhanced prompt with examples and better instructions
+    // Extract recent conversation context (last 3 exchanges) for better context
+    let conversationContext = "";
+    if (conversationHistory.length > 1) {
+      // Get the last 3 exchanges (6 messages = 3 user + 3 assistant)
+      const recentMessages = conversationHistory.slice(-12);
+      conversationContext = recentMessages
+        .filter(msg => msg.role !== "system") // Filter out system messages
+        .map(msg => `${msg.role.toUpperCase()}: ${msg.content}`)
+        .join('\n');
+    }
+
+    // Enhanced prompt with conversation context
     const aiPrompt = `
 You are a database expert that translates natural language queries into SQL queries. 
 Use the following database schema:
 
 ${schemaDescription}
 
+${conversationContext ? `Previous conversation context:
+${conversationContext}
+
+` : ''}
 Important notes about the database:
 - Date fields are stored as VARCHAR, not DATE type
 - Common date formats in the database: 'YYYY-MM-DD'
@@ -250,7 +265,7 @@ Please provide a valid SQL query that answers the user's request.
 Respond ONLY with the SQL query and nothing else. No explanations, no reasoning, no extra text.
 Important guidelines:
 1. Always use SELECT statements for data retrieval
-2. Handle time-based queries appropriately using STR_TO_DATE() for VARCHAR date fields
+2. Handle time-based queries appropriately using STR_TO_DATE for VARCHAR date fields
 3. Respect soft-delete patterns if is_deleted column exists (WHERE is_deleted = 0)
 4. Use appropriate date functions for temporal queries
 5. If the query is unclear or you cannot generate a valid SQL query, respond with "INVALID_QUERY".
@@ -301,7 +316,7 @@ Important guidelines:
       fallbackAttempt = true;
       const simplifiedPrompt = `Database schema:
 ${schemaDescription}
-
+${conversationContext ? `\nPrevious conversation context:\n${conversationContext}\n` : ''}
 Convert to SQL: ${userQuery}
 Respond ONLY with SQL.`;
       const simplifiedPayload = {
