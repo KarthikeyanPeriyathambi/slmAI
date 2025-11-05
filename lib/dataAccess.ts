@@ -1,10 +1,13 @@
 import pool from './db';
+import mysql from 'mysql2/promise';
 
 // Generic function to execute a query
 export async function executeQuery(query: string, params: any[] = []) {
   const connection = await pool.getConnection();
   try {
-    const [results] = await connection.execute(query, params);
+    // Use mysql.format to properly escape identifiers (??) and values (?)
+    const formattedQuery = mysql.format(query, params);
+    const [results] = await connection.execute(formattedQuery);
     return results;
   } catch (error) {
     console.error(`Error executing query: ${query}`, error);
@@ -36,6 +39,7 @@ export async function getTableStructure(tableName: string) {
 }
 
 // Get sample data from a table
+
 export async function getSampleData(tableName: string, limit: number = 10) {
   const query = `SELECT * FROM ?? LIMIT ?`;
   return await executeQuery(query, [tableName, limit]);

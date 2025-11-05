@@ -22,7 +22,7 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 ## Database Setup
 
-This application can integrate with a MySQL database to query your SQL backup files.
+This application integrates with a MySQL database for natural language querying capabilities.
 
 ### Prerequisites
 
@@ -41,21 +41,9 @@ This application can integrate with a MySQL database to query your SQL backup fi
    DB_NAME=slm_app
    ```
 
-### Database Initialization
-
-1. Initialize the database:
-   ```bash
-   pnpm db:init
-   ```
-
-2. Restore the latest backup:
-   ```bash
-   pnpm db:restore
-   ```
-
 ### Usage
 
-After restoring the data, you can:
+With your database properly configured and populated, you can:
 - Query the database through the API endpoints
 - Access data in the chat interface by asking database-related questions
 

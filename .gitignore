@@ -10,8 +10,9 @@
 !.yarn/releases
 !.yarn/versions
 
-#other dir
+# other dir
 /data/OCT
+
 # testing
 /coverage
 
@@ -34,6 +35,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
