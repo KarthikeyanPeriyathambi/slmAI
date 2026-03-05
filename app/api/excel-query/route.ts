@@ -1,4 +1,6 @@
 import { NextRequest } from "next/server";
+import ollama from 'ollama';
+
 
 // In-memory storage for uploaded Excel data (in production, use Redis or similar)
 let uploadedExcelData: {
@@ -367,18 +369,6 @@ async function analyzeExcelQuestion(question: string, fileData: { fileName: stri
 
 // AI-powered Excel analysis
 async function askAIAboutExcel(question: string, fileData: { fileName: string; headers: string[]; data: any[] }) {
-  const SLM_API_KEY = process.env.SLM_API_KEY;
-  const SLM_API_URL = process.env.SLM_API_URL || "https://openrouter.ai/api/v1/chat/completions";
-
-  if (!SLM_API_KEY) {
-    return {
-      response: "I'm sorry, I couldn't understand that question with my local rules, and the AI service is not configured. Try asking something simpler like 'Count records' or 'List all'.",
-      type: 'clarification',
-      data: null,
-      headers: []
-    };
-  }
-
   // Provide a summary of the data for the AI
   const headers = fileData.headers;
   const totalRows = fileData.data.length;
@@ -427,42 +417,15 @@ async function askAIAboutExcel(question: string, fileData: { fileName: string; h
   `;
 
   try {
-    const response = await fetch(SLM_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${SLM_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'http://localhost:3000',
-        'X-Title': 'SLM Excel Analyst'
-      },
-      body: JSON.stringify({
-        model: "google/gemma-3-27b-it:free",
-        messages: [{ role: "user", content: prompt }],
+    const response = await ollama.chat({
+      model: "minimax-m2.5:cloud",
+      messages: [{ role: "user", content: prompt }],
+      options: {
         temperature: 0.1,
-        max_tokens: 1500
-      })
+      }
     });
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        return {
-          response: "I'm currently receiving too many requests. Please wait a moment and try asking again.",
-          type: 'error',
-          data: null,
-          headers: []
-        };
-      }
-      const errText = await response.text();
-      return {
-        response: `AI API Error (${response.status}): ${errText}`,
-        type: 'error',
-        data: null,
-        headers: []
-      };
-    }
-
-    const result = await response.json();
-    const aiText = result.choices?.[0]?.message?.content || "I processed your data but couldn't generate a verbal response.";
+    const aiText = response.message.content || "I processed your data but couldn't generate a verbal response.";
 
     return {
       response: aiText,

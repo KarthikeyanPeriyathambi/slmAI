@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { executeQuery, getDatabaseSchema } from '@/lib/dataAccess';
+import ollama from 'ollama';
 
 export async function POST(request: NextRequest) {
   try {
@@ -78,126 +79,41 @@ export async function POST(request: NextRequest) {
       return await handleNaturalLanguageQuery(lastMessage.content, messages);
     }
 
-    // Get API key and URL from environment variables
-    const SLM_API_KEY = process.env.SLM_API_KEY;
-    const SLM_API_URL = process.env.SLM_API_URL || "https://openrouter.ai/api/v1/chat/completions";
+    console.log("Sending request to Ollama with model: minimax-m2.5:cloud");
 
-    // Check if API key is configured
-    if (!SLM_API_KEY) {
-      console.error("SLM_API_KEY is not configured");
-      return new Response(
-        JSON.stringify({
-          response: "Server configuration error: API key not found."
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    // Prepare the request payload with model specification
-    const payload = {
-      model: "google/gemma-3-27b-it:free",
-      messages: messages.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      })),
-      temperature: 0.7,
-      max_tokens: 1024,
-    };
-
-    console.log("Sending request to SLM API with payload:", JSON.stringify(payload, null, 2));
-
-    // Call the SLM API with OpenRouter specific headers
-    const response = await fetch(SLM_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${SLM_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'http://localhost:3000', // Optional site URL for rankings
-        'X-Title': 'SLM Chat App' // Optional site title for rankings
-      },
-      body: JSON.stringify(payload)
-    });
-
-    // Log the response status and headers for debugging
-    console.log(`SLM API Response Status: ${response.status}`);
-
-    // Try to get response text for debugging
-    const responseText = await response.text();
-    console.log(`SLM API Response Text: ${responseText.substring(0, 500)}...`); // Log first 500 chars
-
-    if (!response.ok) {
-      console.error(`SLM API error: ${response.status}`, responseText);
-      return new Response(
-        JSON.stringify({
-          response: `API Error: ${response.status} - ${responseText.substring(0, 200)}`
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    // Try to parse JSON, but handle if it's not valid JSON
-    let data;
     try {
-      data = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error("Failed to parse API response as JSON:", responseText);
+      const response = await ollama.chat({
+        model: "minimax-m2.5:cloud",
+        messages: messages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })),
+        options: {
+          temperature: 0.7,
+        }
+      });
+
+      const aiResponse = response.message.content;
+
+      if (!aiResponse) {
+        throw new Error("Empty response from Ollama");
+      }
+
+      console.log("Final AI response from Ollama:", aiResponse.substring(0, 100) + "...");
+
+      return new Response(
+        JSON.stringify({ response: aiResponse }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    } catch (apiError: any) {
+      console.error("Ollama API error:", apiError);
       return new Response(
         JSON.stringify({
-          response: "Invalid API response format. Please check the API documentation."
+          response: `AI Error: ${apiError.message || "Unknown error calling Ollama"}`
         }),
         { status: 200, headers: { "Content-Type": "application/json" } }
       );
     }
-
-    console.log("Parsed API response:", JSON.stringify(data, null, 2));
-
-    // Extract the response text from the API response
-    // Handle different possible response formats
-    let aiResponse = "";
-
-    // Format 1: OpenAI-like format (OpenRouter uses this)
-    if (data.choices && data.choices[0] && data.choices[0].message) {
-      aiResponse = data.choices[0].message.content;
-      console.log("Using OpenAI-like response format");
-    }
-    // Format 2: Direct response format
-    else if (data.response) {
-      aiResponse = data.response;
-      console.log("Using direct response format");
-    }
-    // Format 3: Content field
-    else if (data.content) {
-      aiResponse = data.content;
-      console.log("Using content field format");
-    }
-    // Format 4: Text field
-    else if (data.text) {
-      aiResponse = data.text;
-      console.log("Using text field format");
-    }
-    // If we can't find the response text, return the whole data as string
-    else {
-      aiResponse = JSON.stringify(data, null, 2);
-      console.warn("Unexpected API response format, returning full response:", data);
-    }
-
-    // If we still don't have a response, return an error
-    if (!aiResponse) {
-      console.error("Empty response from API:", data);
-      return new Response(
-        JSON.stringify({
-          response: "Received empty response from the AI service."
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    console.log("Final AI response:", aiResponse.substring(0, 100) + "..."); // Log first 100 chars
-
-    return new Response(
-      JSON.stringify({ response: aiResponse }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    );
   } catch (error: unknown) {
     // Type guard to safely access error properties
     let errorMessage = "Unknown error";
@@ -304,106 +220,19 @@ Important guidelines:
 5. If the query is unclear or you cannot generate a valid SQL query, respond with "INVALID_QUERY".
 `;
 
-    // Get API key and URL from environment variables
-    const SLM_API_KEY = process.env.SLM_API_KEY;
-    const SLM_API_URL = process.env.SLM_API_URL || "https://openrouter.ai/api/v1/chat/completions";
-
-    // Prepare the request payload with better parameters for SQL generation
-    const payload = {
-      model: "google/gemma-3-27b-it:free",
+    console.log("Generating SQL with Ollama...");
+    const response = await ollama.chat({
+      model: "minimax-m2.5:cloud",
       messages: [
         { role: "system", content: "You are a database expert that translates natural language queries into SQL queries. Respond ONLY with the SQL query and nothing else. Always use proper SQL syntax, handle date/time queries correctly using STR_TO_DATE for VARCHAR date fields, and respect soft-delete patterns. Use MySQL-compatible functions." },
         { role: "user", content: aiPrompt }
       ],
-      temperature: 0.1,
-      max_tokens: 800,
-      top_p: 0.9,
-    };
-
-    // Call the SLM API to convert natural language to SQL
-    const response = await fetch(SLM_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${SLM_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'http://localhost:3000',
-        'X-Title': 'SLM Chat App'
-      },
-      body: JSON.stringify(payload)
+      options: {
+        temperature: 0.1,
+      }
     });
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({
-            response: "I'm sorry, I'm currently receiving too many requests. Please wait a moment and try again, or try a different question."
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } }
-        );
-      }
-      throw new Error(`AI API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    // Fallback mechanism if the first attempt fails
-    let fallbackAttempt = false;
-    if ((!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) &&
-      (!data.response && !data.content)) {
-      // Try with a simpler prompt
-      console.log("First attempt failed, trying with simplified prompt");
-      fallbackAttempt = true;
-      const simplifiedPrompt = `Database schema:
-${schemaDescription}
-${conversationContext ? `\nPrevious conversation context:\n${conversationContext}\n` : ''}
-Convert to SQL: ${userQuery}
-Respond ONLY with SQL.`;
-      const simplifiedPayload = {
-        model: "google/gemma-3-27b-it:free",
-        messages: [
-          { role: "system", content: "You convert natural language to SQL. Respond ONLY with the SQL query." },
-          { role: "user", content: simplifiedPrompt }
-        ],
-        temperature: 0.1,
-        max_tokens: 500
-      };
-
-      const fallbackResponse = await fetch(SLM_API_URL, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${SLM_API_KEY}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'http://localhost:3000',
-          'X-Title': 'SLM Chat App'
-        },
-        body: JSON.stringify(simplifiedPayload)
-      });
-
-      if (fallbackResponse.ok) {
-        const fallbackData = await fallbackResponse.json();
-        // Merge with original data
-        if (fallbackData.choices && fallbackData.choices[0] && fallbackData.choices[0].message) {
-          data.choices = fallbackData.choices;
-        } else if (fallbackData.response) {
-          data.response = fallbackData.response;
-        }
-      }
-    }
-
-    // Extract the SQL query from the AI response
-    let sqlQuery = "";
-
-    // Handle different possible response formats
-    if (data.choices && data.choices[0] && data.choices[0].message) {
-      sqlQuery = data.choices[0].message.content.trim();
-    } else if (data.response) {
-      sqlQuery = data.response.trim();
-    } else if (data.content) {
-      sqlQuery = data.content.trim();
-    } else {
-      sqlQuery = JSON.stringify(data);
-    }
-
+    let sqlQuery = response.message.content.trim();
     console.log("AI generated SQL query:", sqlQuery);
 
     // Check if we got an empty response
@@ -466,9 +295,6 @@ Respond ONLY with SQL.`;
         { status: 200, headers: { "Content-Type": "application/json" } }
       );
     }
-
-    // Format results for response
-    const formattedResults = JSON.stringify(results, null, 2);
 
     // If results are empty, provide a friendly message
     if (!results || (Array.isArray(results) && results.length === 0)) {
