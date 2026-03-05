@@ -436,7 +436,7 @@ async function askAIAboutExcel(question: string, fileData: { fileName: string; h
         'X-Title': 'SLM Excel Analyst'
       },
       body: JSON.stringify({
-        model: "minimax-m2.5:cloud",
+        model: "google/gemma-3-27b-it:free",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.1,
         max_tokens: 1500
