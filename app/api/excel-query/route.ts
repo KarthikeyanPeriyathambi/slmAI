@@ -177,10 +177,25 @@ async function analyzeExcelQuestion(question: string, fileData: { fileName: stri
     // Check if counting specific filtered items
     const filterResult = applyFilter(targetData, headers, lowerQuestion);
     if (filterResult.filtered) {
-      let msg = `Found **${filterResult.count}** record(s) matching your criteria`;
+      let msg = `Found **${filterResult.count}** record(s) matching your search for "${filterResult.matchValue}"`;
+      if (filterResult.matchColumn) {
+        msg = `Found **${filterResult.count}** record(s) where **${filterResult.matchColumn.replace(/_/g, ' ')}** is **${filterResult.matchValue}**`;
+      }
+
       if (targetFiles.length > 0) {
         msg += ` in ${targetFiles.join(', ')}`;
       }
+
+      // If they asked for a list or show, return the data, not just the count
+      if (lowerQuestion.includes('list') || lowerQuestion.includes('show') || lowerQuestion.includes('details')) {
+        return {
+          response: msg + ':',
+          type: 'table',
+          data: filterResult.sample,
+          headers
+        };
+      }
+
       return {
         response: msg + '.',
         type: 'count',
@@ -188,6 +203,7 @@ async function analyzeExcelQuestion(question: string, fileData: { fileName: stri
         headers: []
       };
     }
+
 
     let msg = `Found a total of **${count}** record(s)`;
     if (targetFiles.length > 0) {
@@ -451,12 +467,14 @@ async function askAIAboutExcel(question: string, fileData: { fileName: string; h
     
     INSTRUCTIONS:
     1. IMPORTANT: Use the 'FULL DATA BREAKDOWNS' above to provide accurate counts/summaries for the ENTIRE dataset of ${totalRows} rows.
-    2. Do NOT say you are analyzing a sample if the 'FULL DATA BREAKDOWNS' contains the information needed for the answer.
-    3. If the user asks for "overall", "total", or "list all", use the exact numbers from the stats.
-    4. Provide professional markdown responses with tables where appropriate.
+    2. If the user asks for a specific name, entity, or value (e.g. "Iswarya"), search for it across all columns in the 'DATA SAMPLE' and distributions.
+    3. Respond with a clear count or list. Format your answer in professional markdown. If many columns exist, only show the most relevant ones.
+    4. Do NOT say you are analyzing a sample if you can find the specific answer in the provided context.
+    5. Each row has a 'source_file' column; use it if relevant.
     
     RESPONSE:
   `;
+
 
 
   try {
@@ -490,34 +508,59 @@ async function askAIAboutExcel(question: string, fileData: { fileName: string; h
 // Helper functions
 
 function applyFilter(data: any[], headers: string[], question: string) {
+  const lowerQ = question.toLowerCase();
   let filtered = data;
+  let matchColumn = '';
+  let matchValue = '';
 
-  // Example filters - can be expanded
-  if (question.includes('this year') || question.includes('current year')) {
+  // 1. Time-based filters (existing)
+  if (lowerQ.includes('this year') || lowerQ.includes('current year')) {
     const currentYear = new Date().getFullYear().toString();
     const dateColumn = findDateColumn(headers);
     if (dateColumn) {
       filtered = data.filter(row => row[dateColumn]?.toString().includes(currentYear));
-    }
-  } else if (question.includes('last year')) {
-    const lastYear = (new Date().getFullYear() - 1).toString();
-    const dateColumn = findDateColumn(headers);
-    if (dateColumn) {
-      filtered = data.filter(row => row[dateColumn]?.toString().includes(lastYear));
+      return { filtered: true, count: filtered.length, sample: filtered, headers, matchColumn: dateColumn, matchValue: currentYear };
     }
   }
 
-  if (filtered.length < data.length) {
-    return {
-      filtered: true,
-      count: filtered.length,
-      sample: filtered.slice(0, 5),
-      headers
-    };
+  // 2. Dynamic Value Filtering
+  // We look for words in the question that match values in the data
+  const ignoreWords = ['show', 'list', 'how', 'many', 'count', 'the', 'was', 'did', 'sold', 'bought', 'total', 'is', 'are', 'was', 'were', 'for', 'with', 'in', 'of', 'client', 'name', 'executive', 'sales'];
+  const words = lowerQ.split(/\s+/).filter(w => w.length > 2 && !ignoreWords.includes(w));
+
+  // Limit search to first 1000 rows for performance
+  const searchSample = data.slice(0, 1000);
+
+  for (const word of words) {
+    for (const header of headers) {
+      // Check if this word exists in this column
+      const match = searchSample.find(row => {
+        const val = String(row[header] || '').toLowerCase();
+        return val === word || (val.includes(word) && val.length < 20); // allow partial but not too vague
+      });
+
+      if (match) {
+        const actualValue = String(match[header]);
+        const exactMatch = data.filter(row => String(row[header] || '').toLowerCase() === actualValue.toLowerCase());
+
+        // If we found a significant filter, return it
+        if (exactMatch.length > 0 && exactMatch.length < data.length) {
+          return {
+            filtered: true,
+            count: exactMatch.length,
+            sample: exactMatch,
+            headers,
+            matchColumn: header,
+            matchValue: actualValue
+          };
+        }
+      }
+    }
   }
 
-  return { filtered: false, count: data.length, sample: data.slice(0, 5), headers };
+  return { filtered: false, count: data.length, sample: data.slice(0, 10), headers };
 }
+
 
 function findNumericColumn(headers: string[], question: string): string | null {
   const numericKeywords = ['price', 'amount', 'cost', 'quantity', 'value', 'sales', 'revenue', 'total', 'mrp', 'rate'];
