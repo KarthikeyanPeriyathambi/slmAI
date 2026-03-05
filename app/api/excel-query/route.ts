@@ -144,9 +144,35 @@ async function analyzeExcelQuestion(question: string, fileData: { fileName: stri
     });
   }
 
-  // 1. TOTAL COUNT QUERIES
-  if (lowerQuestion.match(/total|count|how many|how much|number of|records/)) {
+  // 1. TOTAL COUNT & BREAKDOWN QUERIES
+  if (lowerQuestion.match(/total|count|how many|how much|number of|records|breakdown|distribution|group by/)) {
     const count = targetData.length;
+
+    // Check for grouping/breakdown request
+    const groupingColumn = headers.find(h => {
+      const cleanH = h.toLowerCase().replace(/_/g, ' ');
+      return lowerQuestion.includes(cleanH) && cleanH.length > 3;
+    });
+
+    if (groupingColumn && (lowerQuestion.includes('breakdown') || lowerQuestion.includes('count') || lowerQuestion.includes('group by') || lowerQuestion.includes('distribution'))) {
+      const counts: Record<string, number> = {};
+      targetData.forEach(row => {
+        const val = String(row[groupingColumn] || 'Unknown');
+        counts[val] = (counts[val] || 0) + 1;
+      });
+
+      const breakdown = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([val, count]) => `| ${val} | ${count} |`)
+        .join('\n');
+
+      return {
+        response: `### ${groupingColumn.replace(/_/g, ' ')} Breakdown\n\n| ${groupingColumn.replace(/_/g, ' ')} | Count |\n| :--- | :--- |\n${breakdown}\n\n**Total Records:** ${count}`,
+        type: 'table',
+        data: Object.entries(counts).map(([name, value]) => ({ [groupingColumn]: name, count: value })),
+        headers: [groupingColumn, 'count']
+      };
+    }
 
     // Check if counting specific filtered items
     const filterResult = applyFilter(targetData, headers, lowerQuestion);
@@ -175,6 +201,7 @@ async function analyzeExcelQuestion(question: string, fileData: { fileName: stri
       headers: []
     };
   }
+
 
   // 2. MAXIMUM/MINIMUM QUERIES
   if (lowerQuestion.match(/maximum|max|highest|largest|top/)) {
@@ -390,6 +417,19 @@ async function askAIAboutExcel(question: string, fileData: { fileName: string; h
   }
   const sourceFiles = [...new Set(fileData.data.map(row => row.source_file).filter(Boolean))];
 
+  // Pre-calculate distributions for columns with limited unique values
+  // This allows the AI to give accurate overall counts even from a data sample
+  const fullDataBreakdowns: any = {};
+  headers.forEach(h => {
+    const values = fileData.data.map(r => String(r[h] || 'Unknown'));
+    const uniqueValues = new Set(values);
+    if (uniqueValues.size > 1 && uniqueValues.size <= 30) {
+      const counts: Record<string, number> = {};
+      values.forEach(v => { counts[v] = (counts[v] || 0) + 1; });
+      fullDataBreakdowns[h] = counts;
+    }
+  });
+
   const prompt = `
     You are an expert Data Analyst assistant. I have ${sourceFiles.length > 1 ? sourceFiles.length + ' files' : 'a file'} uploaded.
     
@@ -400,21 +440,24 @@ async function askAIAboutExcel(question: string, fileData: { fileName: string; h
     - Total Columns: ${headers.length}
     - Total Combined Rows: ${totalRows}
     - Headers: ${headers.join(", ")}
+
+    FULL DATA BREAKDOWNS (Exact counts for the entire ${totalRows} rows):
+    ${JSON.stringify(fullDataBreakdowns, null, 2)}
     
-    DATA SAMPLE (first ${dataSample.length} rows for context):
+    DATA SAMPLE (first ${dataSample.length} rows for additional context):
     ${JSON.stringify(dataSample, null, 2)}
     
     USER QUESTION: "${question}"
     
     INSTRUCTIONS:
-    1. Analyze the user's question across ALL uploaded files.
-    2. Respond accurately based on the combined data.
-    3. Each row in the sample has a 'source_file' column to identify its origin.
-    4. If the question targets a specific file, focus on rows where source_file matches.
-    5. Provide professional markdown responses.
+    1. IMPORTANT: Use the 'FULL DATA BREAKDOWNS' above to provide accurate counts/summaries for the ENTIRE dataset of ${totalRows} rows.
+    2. Do NOT say you are analyzing a sample if the 'FULL DATA BREAKDOWNS' contains the information needed for the answer.
+    3. If the user asks for "overall", "total", or "list all", use the exact numbers from the stats.
+    4. Provide professional markdown responses with tables where appropriate.
     
     RESPONSE:
   `;
+
 
   try {
     const response = await ollama.chat({
