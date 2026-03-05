@@ -383,19 +383,11 @@ async function askAIAboutExcel(question: string, fileData: { fileName: string; h
   const headers = fileData.headers;
   const totalRows = fileData.data.length;
 
-  // Fairly sample 50 rows from all source files for context
-  let dataSample: any[] = [];
+  // The frontend limits fileData.data to 2000 rows, but sending 2000 rows to the AI API can cause
+  // Payload Too Large (413) errors depending on the number of columns.
+  // We limit the context to 250 rows to balance accuracy with payload size limits.
+  const dataSample = fileData.data.slice(0, 250);
   const sourceFiles = [...new Set(fileData.data.map(row => row.source_file).filter(Boolean))];
-
-  if (sourceFiles.length > 0) {
-    const rowsPerFile = Math.floor(50 / sourceFiles.length);
-    sourceFiles.forEach(fileName => {
-      const fileRows = fileData.data.filter(row => row.source_file === fileName);
-      dataSample = [...dataSample, ...fileRows.slice(0, rowsPerFile)];
-    });
-  } else {
-    dataSample = fileData.data.slice(0, 50);
-  }
 
   const prompt = `
     You are an expert Data Analyst assistant. I have ${sourceFiles.length > 1 ? sourceFiles.length + ' files' : 'a file'} uploaded.
@@ -408,7 +400,7 @@ async function askAIAboutExcel(question: string, fileData: { fileName: string; h
     - Total Combined Rows: ${totalRows}
     - Headers: ${headers.join(", ")}
     
-    DATA SAMPLE:
+    DATA SAMPLE (first ${dataSample.length} rows for context):
     ${JSON.stringify(dataSample, null, 2)}
     
     USER QUESTION: "${question}"
@@ -436,7 +428,7 @@ async function askAIAboutExcel(question: string, fileData: { fileName: string; h
         model: "google/gemini-2.0-flash-001",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.1,
-        max_tokens: 1000
+        max_tokens: 1500
       })
     });
 
@@ -449,7 +441,13 @@ async function askAIAboutExcel(question: string, fileData: { fileName: string; h
           headers: []
         };
       }
-      throw new Error(`AI API error: ${response.status}`);
+      const errText = await response.text();
+      return {
+        response: `AI API Error (${response.status}): ${errText}`,
+        type: 'error',
+        data: null,
+        headers: []
+      };
     }
 
     const result = await response.json();
@@ -464,7 +462,7 @@ async function askAIAboutExcel(question: string, fileData: { fileName: string; h
   } catch (error: any) {
     console.error("AI Analysis error:", error);
     return {
-      response: "I encountered an error while trying to use my AI brain to analyze this. Here is a basic session summary instead: I see " + totalRows + " records with columns: " + headers.join(", "),
+      response: "System Error while reaching AI service: " + (error.message || String(error)),
       type: 'error',
       data: null,
       headers: []
