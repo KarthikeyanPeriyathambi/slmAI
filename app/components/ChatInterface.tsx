@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2, Database, Sparkles, Upload, FileSpreadsheet, CheckCircle, XCircle } from "lucide-react";
+import { Send, Bot, User, Loader2, Database, Sparkles, Upload, FileSpreadsheet, CheckCircle, XCircle, Menu, X } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
 
 interface Message {
   id: string;
@@ -27,9 +30,11 @@ export default function ChatInterface() {
   const [selectedMode, setSelectedMode] = useState<'mysql' | 'excel' | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const messagesEndRef = useRef<null | HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hasInitialized = useRef(false);
+
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -48,13 +53,14 @@ export default function ChatInterface() {
     const renderContent = () => {
       if (!content) return null;
       return (
-        <div className="text-sm text-gray-700 dark:text-gray-300 mb-2 whitespace-pre-wrap">
-          {content.split(/\*\*(.*?)\*\*/g).map((part, i) =>
-            i % 2 === 1 ? <strong key={i} className="font-semibold">{part}</strong> : part
-          )}
+        <div className="markdown-content text-sm text-gray-700 dark:text-gray-300 mb-2 overflow-x-auto">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {content}
+          </ReactMarkdown>
         </div>
       );
     };
+
 
     // Universal table support
     if (data && Array.isArray(data.data)) {
@@ -257,41 +263,35 @@ export default function ChatInterface() {
                 <div className="text-sm text-green-600 dark:text-green-400 font-medium">
                   Query Results:
                 </div>
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                  <div className="max-h-96 overflow-auto custom-scrollbar">
-                    <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                      {displayRows.map((row, rowIndex) => (
-                        <div key={rowIndex} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-900">
-                          <div className="grid grid-cols-1 gap-2">
-                            {displayHeaders.map((header, index) => (
-                              <div key={index} className="flex">
-                                <span className="font-medium text-gray-700 dark:text-gray-300 w-full">
-                                  {header}:
-                                </span>
-                                <span className="text-gray-600 dark:text-gray-400 ml-2">
-                                  {row[index]}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-x-auto">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {dataLines.join('\n')}
+                  </ReactMarkdown>
                 </div>
               </div>
             );
+
           }
         }
       } catch (e) {
-        // If parsing fails, fall back to plain text
-        return <div className="whitespace-pre-wrap">{content}</div>;
+        // If parsing fails, fall back to markdown
+        return (
+          <div className="markdown-content">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+          </div>
+        );
       }
+
     }
 
     // Default fallback
-    return <div className="whitespace-pre-wrap">{content}</div>;
+    return (
+      <div className="markdown-content">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      </div>
+    );
   };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -613,9 +613,32 @@ export default function ChatInterface() {
   return (
     <div className="h-full flex flex-col bg-transparent overflow-hidden">
       <div className="flex-1 flex overflow-hidden w-full relative">
+        {/* Mobile Sidebar Toggle */}
+        <button
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="lg:hidden fixed top-4 right-4 z-50 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700"
+        >
+          {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+
         {/* Sidebar */}
-        <div className="w-80 flex-shrink-0 border-r border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-900/50 p-6 hidden lg:block overflow-y-auto custom-scrollbar z-20">
+        <div className={`
+          fixed inset-0 z-40 lg:relative lg:inset-auto 
+          w-80 flex-shrink-0 border-r border-gray-200 dark:border-gray-800 
+          bg-white dark:bg-gray-900 p-6 
+          transition-transform duration-300 ease-in-out
+          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          overflow-y-auto custom-scrollbar
+        `}>
+          <div className="flex items-center justify-between mb-6 lg:hidden">
+            <h2 className="text-xl font-bold">Menu</h2>
+            <button onClick={() => setIsSidebarOpen(false)} className="p-2">
+              <X size={24} />
+            </button>
+          </div>
+
           <div className="space-y-6">
+
             {/* Mode Selection */}
             <div>
               <h3 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
@@ -855,25 +878,28 @@ export default function ChatInterface() {
                   )}
 
                   <div
-                    className={`rounded-2xl shadow-sm hover:shadow-md transition-shadow ${message.role === "user"
-                      ? "max-w-[60%] px-5 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white"
+                    className={`rounded-2xl shadow-sm hover:shadow-md transition-shadow markdown-content ${message.role === "user"
+
+                      ? "max-w-[85%] md:max-w-[60%] px-5 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white"
                       : message.type === "error"
                         ? "flex-1 min-w-0 px-5 py-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
-                        : (message.type === "table" || message.type === "upload")
-                          ? "flex-1 min-w-0 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
-                          : "max-w-[75%] px-5 py-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+                        : (message.type === "table" || message.type === "upload" || message.type === "data")
+                          ? "flex-1 min-w-0 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-x-auto"
+                          : "max-w-[90%] md:max-w-[75%] px-5 py-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
                       }`}
                   >
-                    <div className="whitespace-pre-wrap break-words overflow-x-auto">
+
+                    <div className="markdown-content break-words overflow-x-auto">
                       {(message.type === "data" || message.type === "table" || message.type === "upload") && message.data
                         ? formatDataResponse(message.content, message.data)
-                        : message.content.split(/\*\*(.*?)\*\*/g).map((part, i) =>
-                          i % 2 === 1
-                            ? <strong key={i} className="font-semibold">{part}</strong>
-                            : part
+                        : (
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {message.content}
+                          </ReactMarkdown>
                         )
                       }
                     </div>
+
                     <div
                       className={`text-xs mt-3 flex items-center gap-2 ${message.role === "user"
                         ? "text-blue-100"
