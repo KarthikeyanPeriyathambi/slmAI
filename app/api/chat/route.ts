@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
 
     // Prepare the request payload with model specification
     const payload = {
-      model: "google/gemini-2.0-flash-001",
+      model: "minimax-m2.5:cloud",
       messages: messages.map(msg => ({
         role: msg.role,
         content: msg.content
@@ -310,7 +310,7 @@ Important guidelines:
 
     // Prepare the request payload with better parameters for SQL generation
     const payload = {
-      model: "google/gemini-2.0-flash-001",
+      model: "minimax-m2.5:cloud",
       messages: [
         { role: "system", content: "You are a database expert that translates natural language queries into SQL queries. Respond ONLY with the SQL query and nothing else. Always use proper SQL syntax, handle date/time queries correctly using STR_TO_DATE for VARCHAR date fields, and respect soft-delete patterns. Use MySQL-compatible functions." },
         { role: "user", content: aiPrompt }
@@ -359,7 +359,7 @@ ${conversationContext ? `\nPrevious conversation context:\n${conversationContext
 Convert to SQL: ${userQuery}
 Respond ONLY with SQL.`;
       const simplifiedPayload = {
-        model: "google/gemma-3-27b-it:free",
+        model: "minimax-m2.5:cloud",
         messages: [
           { role: "system", content: "You convert natural language to SQL. Respond ONLY with the SQL query." },
           { role: "user", content: simplifiedPrompt }

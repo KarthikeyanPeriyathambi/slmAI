@@ -383,10 +383,21 @@ async function askAIAboutExcel(question: string, fileData: { fileName: string; h
   const headers = fileData.headers;
   const totalRows = fileData.data.length;
 
-  // The frontend limits fileData.data to 2000 rows, but sending 2000 rows to the AI API can cause
-  // Payload Too Large (413) errors depending on the number of columns.
-  // We limit the context to 250 rows to balance accuracy with payload size limits.
-  const dataSample = fileData.data.slice(0, 250);
+  // The free tier of AI APIs has strict token limits (e.g. 37k tokens).
+  // Wide Excel files (e.g. 80 columns) generate massive JSON strings very quickly.
+  // Instead of a hard row limit, we dynamically slice the data to keep the stringified 
+  // version under 60,000 characters (approx ~15k tokens) to ensure it stays well under limits.
+  const dataSample: any[] = [];
+  let currentLength = 0;
+  for (const row of fileData.data) {
+    const rowStringLength = JSON.stringify(row).length;
+    // Cap at roughly 60,000 characters
+    if (currentLength + rowStringLength > 60000 && dataSample.length > 0) {
+      break;
+    }
+    dataSample.push(row);
+    currentLength += rowStringLength;
+  }
   const sourceFiles = [...new Set(fileData.data.map(row => row.source_file).filter(Boolean))];
 
   const prompt = `
@@ -425,7 +436,7 @@ async function askAIAboutExcel(question: string, fileData: { fileName: string; h
         'X-Title': 'SLM Excel Analyst'
       },
       body: JSON.stringify({
-        model: "google/gemini-2.0-flash-001",
+        model: "minimax-m2.5:cloud",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.1,
         max_tokens: 1500
