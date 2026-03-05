@@ -36,7 +36,7 @@ export default function Home() {
 
     // Start fetching DB info immediately
     fetchDbInfo();
-    
+
     return () => clearTimeout(initTimer);
   }, []);
 
@@ -46,47 +46,47 @@ export default function Home() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-blue-900">
+    <div className="flex h-screen flex-col bg-[#f8fafc] dark:bg-[#020617] overflow-hidden">
       {/* Enhanced Header */}
-      <header className="border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
-        <div className="max-w-[80%] mx-auto px-6 py-4">
+      <header className="flex-shrink-0 border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-10">
+        <div className="max-w-[95%] mx-auto px-6 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-2 rounded-xl">
                 <span className="text-white text-lg">🚀</span>
               </div>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                   SLM AI Platform
                 </h1>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-xs text-gray-600 dark:text-gray-400">
                   Intelligent Database Assistant
                 </p>
               </div>
             </div>
-            
+
             {/* Database Status */}
             <div className="flex items-center space-x-4">
               {loading ? (
-                <div className="flex items-center space-x-2 bg-gray-100 dark:bg-gray-800 rounded-full px-4 py-2">
+                <div className="flex items-center space-x-2 bg-gray-100 dark:bg-gray-800 rounded-full px-4 py-1.5">
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></div>
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Checking database...</span>
+                  <span className="text-xs text-gray-600 dark:text-gray-400">Checking database...</span>
                 </div>
               ) : dbInfo.isConnected ? (
-                <div className="flex items-center space-x-2 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-full px-4 py-2">
+                <div className="flex items-center space-x-2 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-full px-4 py-1.5">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <div className="text-sm">
+                  <div className="text-xs">
                     <span className="text-green-700 dark:text-green-300 font-medium">Connected</span>
                     <span className="text-green-600 dark:text-green-400 ml-2">
-                      {dbInfo.name} • {dbInfo.tableCount} tables
+                      {dbInfo.name}
                     </span>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center space-x-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-full px-4 py-2">
+                <div className="flex items-center space-x-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-full px-4 py-1.5">
                   <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-                  <span className="text-sm text-yellow-700 dark:text-yellow-300 font-medium">
-                    Database not connected
+                  <span className="text-xs text-yellow-700 dark:text-yellow-300 font-medium">
+                    Disconnected
                   </span>
                 </div>
               )}
@@ -95,18 +95,16 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main Content - Prevent auto-scrolling */}
-      <main className="flex-1">
-        <div className="h-full">
-          <ChatInterface />
-        </div>
+      {/* Main Content - Takes up all remaining space */}
+      <main className="flex-1 overflow-hidden relative">
+        <ChatInterface />
       </main>
 
       {/* Enhanced Footer */}
-      <footer className="border-t border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-6 text-gray-600 dark:text-gray-400">
+      <footer className="flex-shrink-0 border-t border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-10">
+        <div className="max-w-[95%] mx-auto px-6 py-3">
+          <div className="flex items-center justify-between text-xs">
+            <div className="flex gap-6 text-gray-600 dark:text-gray-400">
               <span className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 System Online
@@ -117,16 +115,13 @@ export default function Home() {
               </span>
               <span className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                Database Active
+                Dual Mode
               </span>
             </div>
-            
+
             <div className="text-right">
               <p className="text-gray-600 dark:text-gray-400">
                 Powered by <span className="font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">SLM AI Technology</span>
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                Secure • Fast • Intelligent
               </p>
             </div>
           </div>
