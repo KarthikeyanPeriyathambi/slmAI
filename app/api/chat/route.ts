@@ -30,16 +30,181 @@ export async function POST(request: NextRequest) {
     console.log("User content:", userContent);
 
     // More comprehensive and intelligent database query detection
-    const databaseKeywords = [
-      'database', 'table', 'query', 'show me', 'find', 'list', 'get',
-      'customer', 'account', 'product', 'bill', 'supplier', 'data',
-      'record', 'information', 'week', 'month', 'today', 'yesterday',
-      'show tables', 'select', 'from', 'where', 'count', 'sum', 'avg',
-      'added', 'created', 'updated', 'modified', 'recent', 'latest',
-      'stock', 'price', 'mrp', 'retail', 'category', 'out of stock',
-      'low stock', 'inventory', 'sales', 'orders', 'transactions'
-    ];
+    // const databaseKeywords = [
+    //   'database', 'table', 'query', 'show me', 'find', 'list', 'get',
+    //   'customer', 'account', 'product', 'bill', 'supplier', 'data',
+    //   'record', 'information', 'week', 'month', 'today', 'yesterday',
+    //   'show tables', 'select', 'from', 'where', 'count', 'sum', 'avg',
+    //   'added', 'created', 'updated', 'modified', 'recent', 'latest',
+    //   'stock', 'price', 'mrp', 'retail', 'category', 'out of stock',
+    //   'low stock', 'inventory', 'sales', 'orders', 'transactions'
+    // ];
 
+    const databaseKeywords = [
+
+      // database basics
+      'database', 'db', 'schema', 'table', 'tables', 'row', 'rows', 'column', 'columns',
+      'record', 'records', 'data', 'dataset', 'entry', 'entries', 'information', 'details',
+
+      // display actions
+      'show', 'show me', 'display', 'view', 'see', 'list', 'get', 'fetch', 'retrieve',
+      'give', 'give me', 'bring', 'load', 'present', 'print', 'output', 'return',
+
+      // search actions
+      'find', 'search', 'look', 'look for', 'lookup', 'check', 'identify', 'locate',
+      'scan', 'discover', 'detect', 'track', 'trace',
+
+      // filtering
+      'filter', 'filtered', 'where', 'with', 'without', 'having', 'include', 'exclude',
+      'containing', 'contains', 'equal', 'equals', 'not equal', 'greater', 'less',
+      'greater than', 'less than', 'above', 'below', 'between', 'range',
+
+      // sql operations
+      'select', 'from', 'join', 'inner join', 'left join', 'right join', 'group',
+      'group by', 'order', 'order by', 'sort', 'limit', 'distinct', 'count',
+      'sum', 'avg', 'average', 'min', 'max', 'total', 'calculate', 'aggregate',
+
+      // counting phrases
+      'how many', 'number of', 'total number', 'count of', 'quantity of',
+
+      // time related
+      'today', 'yesterday', 'tomorrow', 'date', 'time', 'day', 'week', 'month', 'year',
+      'daily', 'weekly', 'monthly', 'yearly', 'current', 'last', 'previous',
+      'recent', 'latest', 'new', 'old', 'created', 'added', 'updated', 'modified',
+      'deleted', 'before', 'after', 'between', 'during', 'range', 'since', 'until',
+
+      // people
+      'customer', 'customers', 'client', 'clients', 'user', 'users', 'person', 'people',
+      'employee', 'employees', 'staff', 'member', 'members', 'manager', 'admin',
+      'agent', 'agents', 'owner', 'owners',
+
+      // organization
+      'company', 'companies', 'organization', 'business', 'branch', 'branches',
+      'department', 'division', 'team',
+
+      // suppliers
+      'supplier', 'suppliers', 'vendor', 'vendors', 'provider', 'providers',
+      'manufacturer', 'manufacturers', 'distributor', 'distributors',
+
+      // product related
+      'product', 'products', 'item', 'items', 'goods', 'material', 'materials',
+      'inventory', 'catalog', 'catalogue', 'brand', 'brands', 'model', 'models',
+      'category', 'categories', 'type', 'types', 'variant', 'variants',
+
+      // pricing
+      'price', 'prices', 'cost', 'costs', 'amount', 'value', 'mrp', 'retail',
+      'wholesale', 'discount', 'offer', 'margin', 'profit', 'revenue', 'income',
+      'expense', 'expenses', 'budget', 'rate',
+
+      // stock and inventory
+      'stock', 'stocks', 'inventory', 'available', 'availability',
+      'out of stock', 'low stock', 'remaining', 'balance', 'quantity',
+      'qty', 'units', 'warehouse', 'location', 'store', 'branch stock',
+
+      // sales
+      'sale', 'sales', 'sell', 'sold', 'selling', 'order', 'orders',
+      'purchase', 'purchases', 'transaction', 'transactions',
+      'invoice', 'invoices', 'billing', 'bill', 'payment', 'payments',
+      'receipt', 'receipts', 'refund', 'refunds', 'return', 'returns',
+
+      // logistics
+      'shipment', 'shipments', 'delivery', 'deliveries', 'dispatch', 'tracking',
+
+      // crm
+      'lead', 'leads', 'opportunity', 'opportunities', 'contact', 'contacts',
+
+      // analytics
+      'report', 'reports', 'summary', 'analysis', 'analytics', 'statistics',
+      'trend', 'trends', 'growth', 'performance', 'comparison', 'metrics',
+
+      // ranking
+      'top', 'top 5', 'top 10', 'highest', 'lowest', 'best', 'worst', 'most', 'least',
+      'rank', 'ranking', 'popular', 'frequent', 'rare',
+
+      // operations
+      'added', 'created', 'inserted', 'updated', 'changed', 'modified',
+      'removed', 'deleted', 'replaced',
+
+      // financial metrics
+      'revenue', 'profit', 'loss', 'margin', 'turnover', 'sales amount',
+      'total sales', 'gross', 'net', 'balance', 'credit', 'debit',
+
+      // plain english questions
+      'what', 'which', 'who', 'when', 'where', 'why', 'how',
+
+      // natural language patterns
+      'show all', 'give all', 'display all', 'get all',
+      'show details', 'full details', 'complete list', 'full report',
+      'latest records', 'recent records', 'new records', 'old records',
+
+      // comparison
+      'compare', 'comparison', 'difference', 'versus', 'vs',
+
+      // status
+      'status', 'active', 'inactive', 'pending', 'completed', 'cancelled',
+
+      // misc business
+      'project', 'projects', 'task', 'tasks', 'activity', 'activities',
+      'ticket', 'tickets', 'issue', 'issues',
+
+      // question starters
+      'what', 'which', 'who', 'whom', 'whose', 'when', 'where', 'why', 'how',
+
+      // request words
+      'can', 'could', 'will', 'would', 'should', 'may', 'might',
+
+      // asking for information
+      'tell me', 'tell me about', 'explain', 'describe', 'define',
+      'give details', 'provide details', 'show details', 'more details',
+      'full details', 'complete details', 'information about',
+
+      // listing requests
+      'show all', 'give all', 'list all', 'display all', 'get all',
+      'show list', 'give list', 'list out', 'display list',
+
+      // information words
+      'details', 'detail', 'info', 'information', 'description',
+      'summary', 'overview', 'explanation',
+
+      // asking for examples
+      'example', 'examples', 'sample', 'samples',
+
+      // asking quantity
+      'how many', 'how much', 'total number', 'number of',
+
+      // asking comparison
+      'which one', 'which is better', 'which is higher', 'which is lower',
+      'compare', 'comparison', 'difference between',
+
+      // asking status
+      'status of', 'current status', 'latest status',
+
+      // asking time
+      'when was', 'when did', 'when is', 'how long', 'since when',
+
+      // asking reason
+      'why is', 'why was', 'reason for', 'cause of',
+
+      // asking process
+      'how to', 'how do i', 'how does', 'how can i', 'steps to',
+
+      // asking identification
+      'who is', 'who are', 'which one is', 'what is',
+
+      // asking location
+      'where is', 'where are', 'location of',
+
+      // asking explanation
+      'what does', 'what do', 'what did', 'what happened',
+
+      // casual user phrases
+      'i want', 'i need', 'please show', 'please give', 'can you show',
+      'can you give', 'can you tell', 'let me see', 'i would like',
+
+      // report style
+      'show report', 'give report', 'generate report',
+      'show summary', 'give summary', 'generate summary'
+    ];
     // Enhanced detection logic with better pattern matching
     const isDatabaseQuery = databaseKeywords.some(keyword => userContent.includes(keyword)) ||
       userContent.includes('show') ||
