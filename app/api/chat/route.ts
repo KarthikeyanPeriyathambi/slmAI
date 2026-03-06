@@ -3,10 +3,10 @@ import { executeQuery, getDatabaseSchema } from '@/lib/dataAccess';
 
 // Cloud AI helper — calls OpenRouter with fallback models (works on Vercel)
 const FREE_MODELS = [
+  'nvidia/nemotron-nano-9b-v2:free',
+  'qwen/qwen3-coder-480b-a35b:free',
   'meta-llama/llama-3.3-70b-instruct:free',
   'meta-llama/llama-4-maverick:free',
-  'qwen/qwen3-coder-480b-a35b:free',
-  'nvidia/nemotron-nano-9b-v2:free',
 ];
 
 async function callAI(messages: { role: string; content: string }[], temperature = 0.7): Promise<string> {
