@@ -1,6 +1,36 @@
 import { NextRequest } from "next/server";
 import { executeQuery, getDatabaseSchema } from '@/lib/dataAccess';
-import ollama from 'ollama';
+
+// Cloud AI helper — calls OpenRouter (works on Vercel)
+async function callAI(messages: { role: string; content: string }[], temperature = 0.7): Promise<string> {
+  const apiKey = process.env.SLM_API_KEY;
+  const apiUrl = process.env.SLM_API_URL || 'https://openrouter.ai/api/v1/chat/completions';
+
+  if (!apiKey) throw new Error('SLM_API_KEY is not set in environment variables');
+
+  const res = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'HTTP-Referer': 'https://slm-app.vercel.app',
+      'X-Title': 'SLM App',
+    },
+    body: JSON.stringify({
+      model: 'mistralai/mistral-7b-instruct:free',
+      messages,
+      temperature,
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`OpenRouter API error ${res.status}: ${errText}`);
+  }
+
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content ?? '';
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -244,37 +274,29 @@ export async function POST(request: NextRequest) {
       return await handleNaturalLanguageQuery(lastMessage.content, messages);
     }
 
-    console.log("Sending request to Ollama with model: minimax-m2.5:cloud");
+    console.log("Sending request to OpenRouter AI...");
 
     try {
-      const response = await ollama.chat({
-        model: "minimax-m2.5:cloud",
-        messages: messages.map(msg => ({
-          role: msg.role,
-          content: msg.content
-        })),
-        options: {
-          temperature: 0.7,
-        }
-      });
-
-      const aiResponse = response.message.content;
+      const aiResponse = await callAI(
+        messages.map(msg => ({ role: msg.role, content: msg.content })),
+        0.7
+      );
 
       if (!aiResponse) {
-        throw new Error("Empty response from Ollama");
+        throw new Error("Empty response from AI");
       }
 
-      console.log("Final AI response from Ollama:", aiResponse.substring(0, 100) + "...");
+      console.log("Final AI response:", aiResponse.substring(0, 100) + "...");
 
       return new Response(
         JSON.stringify({ response: aiResponse }),
         { status: 200, headers: { "Content-Type": "application/json" } }
       );
     } catch (apiError: any) {
-      console.error("Ollama API error:", apiError);
+      console.error("AI API error:", apiError);
       return new Response(
         JSON.stringify({
-          response: `AI Error: ${apiError.message || "Unknown error calling Ollama"}`
+          response: `AI Error: ${apiError.message || "Unknown error calling AI service"}`
         }),
         { status: 200, headers: { "Content-Type": "application/json" } }
       );
@@ -385,19 +407,16 @@ Important guidelines:
 5. If the query is unclear or you cannot generate a valid SQL query, respond with "INVALID_QUERY".
 `;
 
-    console.log("Generating SQL with Ollama...");
-    const response = await ollama.chat({
-      model: "minimax-m2.5:cloud",
-      messages: [
+    console.log("Generating SQL with OpenRouter AI...");
+    const sqlQuery_raw = await callAI(
+      [
         { role: "system", content: "You are a database expert that translates natural language queries into SQL queries. Respond ONLY with the SQL query and nothing else. Always use proper SQL syntax, handle date/time queries correctly using STR_TO_DATE for VARCHAR date fields, and respect soft-delete patterns. Use MySQL-compatible functions." },
         { role: "user", content: aiPrompt }
       ],
-      options: {
-        temperature: 0.1,
-      }
-    });
+      0.1
+    );
 
-    let sqlQuery = response.message.content.trim();
+    let sqlQuery = sqlQuery_raw.trim();
     console.log("AI generated SQL query:", sqlQuery);
 
     // Check if we got an empty response

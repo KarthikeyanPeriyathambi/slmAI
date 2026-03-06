@@ -1,5 +1,35 @@
 import { NextRequest } from "next/server";
-import ollama from 'ollama';
+
+// Cloud AI helper — calls OpenRouter (works on Vercel)
+async function callAI(messages: { role: string; content: string }[], temperature = 0.1): Promise<string> {
+  const apiKey = process.env.SLM_API_KEY;
+  const apiUrl = process.env.SLM_API_URL || 'https://openrouter.ai/api/v1/chat/completions';
+
+  if (!apiKey) throw new Error('SLM_API_KEY is not set in environment variables');
+
+  const res = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'HTTP-Referer': 'https://slm-app.vercel.app',
+      'X-Title': 'SLM App',
+    },
+    body: JSON.stringify({
+      model: 'mistralai/mistral-7b-instruct:free',
+      messages,
+      temperature,
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`OpenRouter API error ${res.status}: ${errText}`);
+  }
+
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content ?? '';
+}
 
 
 // In-memory storage for uploaded Excel data (in production, use Redis or similar)
@@ -478,18 +508,10 @@ async function askAIAboutExcel(question: string, fileData: { fileName: string; h
 
 
   try {
-    const response = await ollama.chat({
-      model: "minimax-m2.5:cloud",
-      messages: [{ role: "user", content: prompt }],
-      options: {
-        temperature: 0.1,
-      }
-    });
-
-    const aiText = response.message.content || "I processed your data but couldn't generate a verbal response.";
+    const aiText = await callAI([{ role: "user", content: prompt }], 0.1);
 
     return {
-      response: aiText,
+      response: aiText || "I processed your data but couldn't generate a verbal response.",
       type: 'text',
       data: null,
       headers: []
