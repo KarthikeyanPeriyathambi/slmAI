@@ -2,10 +2,11 @@ import { NextRequest } from "next/server";
 
 // Cloud AI helper — calls OpenRouter with fallback models (works on Vercel)
 const FREE_MODELS = [
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'meta-llama/llama-4-maverick:free',
-  'qwen/qwen3-coder-480b-a35b:free',
+  "minimax/minimax-m2.5",
   'nvidia/nemotron-nano-9b-v2:free',
+  // 'qwen/qwen3-coder-480b-a35b:free',
+  // 'meta-llama/llama-3.3-70b-instruct:free',
+  // 'meta-llama/llama-4-maverick:free',
 ];
 
 async function callAI(messages: { role: string; content: string }[], temperature = 0.1): Promise<string> {
@@ -517,9 +518,15 @@ async function askAIAboutExcel(question: string, fileData: { fileName: string; h
     INSTRUCTIONS:
     1. IMPORTANT: Use the 'FULL DATA BREAKDOWNS' above to provide accurate counts/summaries for the ENTIRE dataset of ${totalRows} rows.
     2. If the user asks for a specific name, entity, or value (e.g. "Iswarya"), search for it across all columns in the 'DATA SAMPLE' and distributions.
-    3. Respond with a clear count or list. Format your answer in professional markdown. If many columns exist, only show the most relevant ones.
-    4. Do NOT say you are analyzing a sample if you can find the specific answer in the provided context.
-    5. Each row has a 'source_file' column; use it if relevant.
+    3. Respond with a clear, professional, and visually appealing markdown format.
+    4. STRUCTURE YOUR RESPONSE AS FOLLOWS:
+       - Start with a direct answer or a table if requested.
+       - Include a "### ✅ Summary" section that briefly explains the overall result.
+       - Include a "### 💡 Key Insights" section with 2-3 bullet points highlighting interesting patterns or findings.
+       - Include a "### 🔍 Suggested Follow-up Questions" section with 3-4 specific questions the user might want to ask next based on this data. Format these as a list.
+    5. Use bold text for emphasis on key numbers or names.
+    6. Do NOT say you are analyzing a sample if you can find the specific answer in the provided context.
+    7. Each row has a 'source_file' column; use it if relevant.
     
     RESPONSE:
   `;

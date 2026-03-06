@@ -531,79 +531,22 @@ Important guidelines:
       if (results.length === 1 && Object.keys(results[0]).length === 1) {
         const value = Object.values(results[0])[0];
         const key = Object.keys(results[0])[0];
-        formattedResponse = `I found ${value} ${key.replace(/_/g, ' ')}.`;
-      }
-      // For small result sets (5 or fewer), format them as a concise list
-      else if (results.length <= 5) {
-        formattedResponse = "I found the following data:\n\n";
-        results.forEach((row: any, index) => {
-          formattedResponse += `${index + 1}. `;
-          const entries = Object.entries(row);
-
-          // Identify important fields based on common patterns
-          const priorityPatterns = [
-            'id', 'name', 'title', 'description', 'price', 'cost', 'mrp', 'amount',
-            'stock', 'quantity', 'count', 'status', 'type', 'category'
-          ];
-
-          // Find priority fields (case insensitive)
-          const priorityEntries = entries.filter(([key]) =>
-            priorityPatterns.some(pattern =>
-              key.toLowerCase().includes(pattern)
-            )
-          );
-
-          // If we found priority fields, use up to 4 of them
-          if (priorityEntries.length > 0) {
-            const displayEntries = priorityEntries.slice(0, Math.min(4, priorityEntries.length));
-            formattedResponse += displayEntries.map(([key, value]) => `${key}: ${value}`).join(", ") + "\n";
-          } else if (entries.length <= 3) {
-            // For other data with few columns, show all
-            formattedResponse += entries.map(([key, value]) => `${key}: ${value}`).join(", ") + "\n";
-          } else {
-            // For data with many columns, show first 3
-            const firstThree = entries.slice(0, 3);
-            formattedResponse += firstThree.map(([key, value]) => `${key}: ${value}`).join(", ") + "\n";
-          }
-        });
+        formattedResponse = `### ✅ Summary\nI found **${value}** ${key.replace(/_/g, ' ')} matching your query.\n`;
       }
       // For larger result sets, provide a summary with sample data
       else {
-        formattedResponse = `I found ${results.length} records matching your query. Here are the first 3 results:\n\n`;
-        results.slice(0, 3).forEach((row: any, index) => {
-          formattedResponse += `${index + 1}. `;
-
-          // Identify important fields based on common patterns
-          const entries = Object.entries(row);
-          const priorityPatterns = [
-            'id', 'name', 'title', 'description', 'price', 'cost', 'mrp', 'amount',
-            'stock', 'quantity', 'count', 'status', 'type', 'category'
-          ];
-
-          // Find priority fields (case insensitive)
-          const priorityEntries = entries.filter(([key]) =>
-            priorityPatterns.some(pattern =>
-              key.toLowerCase().includes(pattern)
-            )
-          );
-
-          // If we found priority fields, use up to 4 of them
-          if (priorityEntries.length > 0) {
-            const displayEntries = priorityEntries.slice(0, Math.min(4, priorityEntries.length));
-            formattedResponse += displayEntries.map(([key, value]) => `${key}: ${value}`).join(", ") + "\n";
-          } else {
-            // For other data, show first 3 columns
-            const firstThree = entries.slice(0, 3);
-            formattedResponse += firstThree.map(([key, value]) => `${key}: ${value}`).join(", ") + "\n";
-          }
-        });
-
-        if (results.length > 3) {
-          formattedResponse += `\n... and ${results.length - 3} more records.`;
-        }
+        formattedResponse = `### ✅ Summary\nI found **${results.length}** records matching your query.\n\n`;
       }
+
+      formattedResponse += "\n### 💡 Key Insights\n- The data shown below reflects the current state of the database.\n- You can use the search bar to further filter these results.\n";
+
+      formattedResponse += "\n### 🔍 Suggested Follow-up Questions\n";
+      formattedResponse += "1. Can you show more details for the first record?\n";
+      formattedResponse += "2. Group these results by category.\n";
+      formattedResponse += "3. Export this data to CSV.\n";
+
     } else {
-      formattedResponse = "I found no data matching your query.";
+      formattedResponse = "### ❌ Result\nI found no data matching your query.";
     }
 
     return new Response(

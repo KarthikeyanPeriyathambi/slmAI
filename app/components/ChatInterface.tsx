@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2, Database, Sparkles, Upload, FileSpreadsheet, CheckCircle, XCircle, Menu, X } from "lucide-react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { Send, Bot, User, Loader2, Database, Sparkles, Upload, FileSpreadsheet, CheckCircle, XCircle, Menu, X, Lightbulb, Search, MessageSquare, ArrowRight } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Components } from "react-markdown";
 
 
 interface Message {
@@ -65,51 +66,50 @@ export default function ChatInterface() {
     // Universal table support
     if (data && Array.isArray(data.data)) {
       const headers = data.headers || Object.keys(data.data[0] || {});
-      const MAX_DISPLAY = 200; // Sensible limit for chat UI performance
+      const MAX_DISPLAY = 100; // Limit for performance
       const displayData = data.data.slice(0, MAX_DISPLAY);
       const hasMore = data.data.length > MAX_DISPLAY;
 
       return (
-        <div className="space-y-4 w-full">
+        <div className="space-y-4 w-full animate-fadeIn">
           {renderContent()}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm font-bold text-blue-700 dark:text-blue-400">
-              <FileSpreadsheet size={18} />
-              <span className="uppercase tracking-wider">
-                {hasMore ? `Preview: First ${MAX_DISPLAY} of ${data.data.length} records` : `Data View (${data.data.length} records)`}
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 tracking-widest uppercase">
+              <FileSpreadsheet size={14} />
+              <span>
+                {hasMore ? `Preview: ${MAX_DISPLAY} / ${data.data.length} records` : `DataSet: ${data.data.length} records`}
               </span>
             </div>
-            <div className="text-xs text-gray-500 font-medium">
-              {hasMore ? "Scroll for columns" : "Full View"}
-            </div>
           </div>
-          <div className="table-scroll-container rounded-xl border-2 border-gray-200 dark:border-gray-700 shadow-md overflow-x-auto w-full max-w-full" style={{ maxHeight: '500px' }}>
-            <table className="w-full border-collapse" style={{ minWidth: headers.length * 150 + 'px' }}>
-              <thead className="sticky top-0 z-20 bg-gray-50 dark:bg-gray-900 border-b-2 border-gray-200 dark:border-gray-700 text-sm">
-                <tr>
-                  {headers.map((header: string, idx: number) => (
-                    <th key={idx} className="px-6 py-5 text-left text-[12px] font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wider bg-gray-50 dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800 last:border-r-0 whitespace-nowrap min-w-[150px]">
-                      {String(header).replace(/_/g, ' ')}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-800 font-mono">
-                {displayData.map((row: any, rowIdx: number) => (
-                  <tr key={rowIdx} className="hover:bg-blue-50/40 dark:hover:bg-blue-900/10 transition-colors">
-                    {headers.map((header: string, colIdx: number) => (
-                      <td key={colIdx} className="px-6 py-3 text-[11px] font-medium text-gray-700 dark:text-gray-300 border-r border-gray-50 dark:border-gray-800/50 last:border-r-0">
-                        {row[header] === null || row[header] === undefined ? <span className="text-gray-400 italic">-</span> : String(row[header])}
-                      </td>
+          <div className="rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden bg-white dark:bg-gray-900/50">
+            <div className="overflow-x-auto custom-scrollbar" style={{ maxHeight: '400px' }}>
+              <table className="w-full border-collapse">
+                <thead className="sticky top-0 z-20 bg-gray-50 dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
+                  <tr>
+                    {headers.map((header: string, idx: number) => (
+                      <th key={idx} className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap min-w-[120px]">
+                        {String(header).replace(/_/g, ' ')}
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50 font-sans">
+                  {displayData.map((row: any, rowIdx: number) => (
+                    <tr key={rowIdx} className="hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors">
+                      {headers.map((header: string, colIdx: number) => (
+                        <td key={colIdx} className="px-4 py-2.5 text-[12px] text-gray-700 dark:text-gray-300 border-r border-gray-50/50 dark:border-gray-800/20 last:border-r-0">
+                          {row[header] === null || row[header] === undefined ? <span className="text-gray-300 dark:text-gray-600 italic">-</span> : String(row[header])}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
           {hasMore && (
-            <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/50 rounded-lg p-3 text-[11px] text-amber-700 dark:text-amber-400 italic text-center">
-              ⚠️ Showing only the first **{MAX_DISPLAY}** records to prevent interface lag. All **{data.data.length}** records are used for calculations and analysis.
+            <div className="bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-900/30 rounded-lg p-3 text-[10px] text-indigo-600 dark:text-indigo-400 font-medium text-center">
+              ⚠️ Showing first {MAX_DISPLAY} rows. Use specific filters to see more data.
             </div>
           )}
         </div>
@@ -865,80 +865,141 @@ export default function ChatInterface() {
                 </div>
               </div>
             ) : (
-              messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex gap-4 min-w-0 ${message.role === "user" ? "justify-end" : "justify-start w-full"
-                    }`}
-                >
-                  {message.role === "assistant" && (
-                    <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                      <Bot size={16} className="text-white" />
-                    </div>
-                  )}
+              messages.map((message) => {
+                // Extract suggested questions if this is an assistant message
+                const suggestions: string[] = [];
+                if (message.role === "assistant") {
+                  const suggestionSection = message.content.split(/### (?:🔍 |)Suggested Follow-up Questions/i)[1];
+                  if (suggestionSection) {
+                    const lines = suggestionSection.split('\n');
+                    lines.forEach(line => {
+                      const match = line.match(/^\d+\.\s*(.+)$|^\s*-\s*(.+)$|^\s*•\s*(.+)$/);
+                      if (match) {
+                        const question = (match[1] || match[2] || match[3]).trim();
+                        if (question && question.length > 5) suggestions.push(question);
+                      }
+                    });
+                  }
+                }
 
+                return (
                   <div
-                    className={`rounded-2xl shadow-sm hover:shadow-md transition-shadow markdown-content ${message.role === "user"
-
-                      ? "max-w-[85%] md:max-w-[60%] px-5 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white"
-                      : message.type === "error"
-                        ? "flex-1 min-w-0 px-5 py-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
-                        : (message.type === "table" || message.type === "upload" || message.type === "data")
-                          ? "flex-1 min-w-0 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-x-auto"
-                          : "max-w-[90%] md:max-w-[75%] px-5 py-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+                    key={message.id}
+                    className={`flex gap-4 min-w-0 message-bubble-${message.role} ${message.role === "user" ? "justify-end" : "justify-start w-full"
                       }`}
                   >
+                    {message.role === "assistant" && (
+                      <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg transform hover:scale-105 transition-transform duration-200">
+                        <Bot size={20} className="text-white" />
+                      </div>
+                    )}
 
-                    <div className="markdown-content break-words overflow-x-auto">
-                      {(message.type === "data" || message.type === "table" || message.type === "upload") && message.data
-                        ? formatDataResponse(message.content, message.data)
-                        : (
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {message.content}
-                          </ReactMarkdown>
-                        )
-                      }
-                    </div>
+                    <div className="flex flex-col gap-2 max-w-[90%] md:max-w-[85%]">
+                      <div
+                        className={`rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 ${message.role === "user"
+                          ? "px-6 py-4 bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-tr-none shadow-blue-200 dark:shadow-none"
+                          : message.type === "error"
+                            ? "w-full px-6 py-4 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200"
+                            : "w-full glass-effect px-6 py-5 border border-gray-100 dark:border-gray-800 rounded-tl-none"
+                          }`}
+                      >
+                        <div className="markdown-content break-words">
+                          {(message.type === "data" || message.type === "table" || message.type === "upload") && message.data
+                            ? formatDataResponse(message.content, message.data)
+                            : (
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                  h3: ({ children }) => {
+                                    const text = String(children);
+                                    let icon = <CheckCircle size={18} />;
+                                    let className = "header-summary";
 
-                    <div
-                      className={`text-xs mt-3 flex items-center gap-2 ${message.role === "user"
-                        ? "text-blue-100"
-                        : message.type === "error"
-                          ? "text-red-500"
-                          : "text-gray-500 dark:text-gray-400"
-                        }`}
-                    >
-                      {message.role === "user" ? <User size={12} /> : <Bot size={12} />}
-                      {message.timestamp.toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                      {message.type === "data" && (
-                        <span className="bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-2 py-1 rounded-full text-xs">
-                          DATA
-                        </span>
+                                    if (text.includes("Insight") || text.includes("💡") || text.includes("Key")) {
+                                      icon = <Lightbulb size={18} />;
+                                      className = "header-insight";
+                                    }
+                                    if (text.includes("Suggested") || text.includes("🔍") || text.includes("Follow-up")) {
+                                      icon = <Search size={18} />;
+                                      className = "header-suggested";
+                                    }
+                                    if (text.includes("Summary") || text.includes("✅")) {
+                                      icon = <CheckCircle size={18} />;
+                                      className = "header-summary";
+                                    }
+
+                                    return (
+                                      <h3 className={`flex items-center gap-2 font-bold mb-4 mt-6 ${className}`}>
+                                        {icon}
+                                        {children}
+                                      </h3>
+                                    );
+                                  }
+                                }}
+                              >
+                                {message.content}
+                              </ReactMarkdown>
+                            )
+                          }
+                        </div>
+
+                        <div
+                          className={`text-[10px] mt-4 flex items-center gap-2 opacity-60 uppercase tracking-tighter font-semibold ${message.role === "user" ? "text-blue-100" : "text-gray-500"
+                            }`}
+                        >
+                          {message.role === "user" ? <User size={10} /> : <Bot size={10} />}
+                          {message.timestamp.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                          {message.type === "data" && (
+                            <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded text-[9px]">
+                              QUERY RESULT
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Suggestion Buttons */}
+                      {suggestions.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2 animate-fadeIn">
+                          {suggestions.slice(0, 3).map((suggestion, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => {
+                                setInputValue(suggestion);
+                                // Optional: auto-submit? Let's keep it to setting input for now
+                              }}
+                              className="group flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-blue-100 dark:border-blue-900/50 rounded-full text-xs text-blue-700 dark:text-blue-300 transition-all duration-200 hover:shadow-sm"
+                            >
+                              <MessageSquare size={12} className="text-blue-400 group-hover:text-blue-600 transition-colors" />
+                              {suggestion}
+                              <ArrowRight size={10} className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all duration-200" />
+                            </button>
+                          ))}
+                        </div>
                       )}
                     </div>
-                  </div>
 
-                  {message.role === "user" && (
-                    <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-r from-gray-600 to-gray-700 rounded-full flex items-center justify-center">
-                      <User size={16} className="text-white" />
-                    </div>
-                  )}
-                </div>
-              ))
+                    {message.role === "user" && (
+                      <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-gray-600 to-gray-800 rounded-2xl flex items-center justify-center shadow-lg transform hover:scale-105 transition-transform duration-200">
+                        <User size={20} className="text-white" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
 
             {isLoading && (
-              <div className="flex gap-4">
-                <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                  <Bot size={16} className="text-white" />
+              <div className="flex gap-4 animate-pulse">
+                <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <Bot size={20} className="text-white" />
                 </div>
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm">
-                  <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
-                    <Loader2 size={16} className="animate-spin" />
-                    <span className="text-sm">Analyzing your query...</span>
+                <div className="glass-effect border border-gray-100 dark:border-gray-800 rounded-2xl px-6 py-5 shadow-sm min-w-[200px]">
+                  <div className="flex items-center gap-3 text-blue-600 dark:text-blue-400">
+                    <Loader2 size={18} className="animate-spin" />
+                    <span className="text-sm font-medium">Crunching the data...</span>
                   </div>
                 </div>
               </div>
@@ -947,47 +1008,47 @@ export default function ChatInterface() {
           </div>
 
           {/* Input Area */}
-          <div className="backdrop-blur-sm p-6">
-            <form onSubmit={handleAskQuestion} className="w-full">
-              <div className="flex gap-3">
-                <div className="flex-1 relative">
+          <div className="p-6">
+            <form onSubmit={handleAskQuestion} className="w-full max-w-5xl mx-auto">
+              <div className="flex gap-3 items-end">
+                <div className="flex-1 relative group">
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-3xl blur opacity-10 group-focus-within:opacity-25 transition-opacity duration-300"></div>
                   <textarea
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={
                       uploadedFiles.length > 0 && uploadedFiles[0].mode === 'excel'
-                        ? "Ask about your data... (Try: 'How many records?', 'Show 2023 data', 'What's the total sales?')"
-                        : "Ask about your data... (Try: 'Show products with MRP 280' or 'Last 5 items')"
+                        ? "Ask about your data... (e.g., 'Compare sales across regions')"
+                        : "Ask about your data..."
                     }
-                    className="w-full border border-gray-300 dark:border-gray-700 rounded-2xl px-6 py-4 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white resize-none shadow-sm hover:shadow-md transition-shadow"
+                    className="w-full relative glass-effect border border-gray-200 dark:border-gray-800 rounded-3xl px-8 py-5 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent dark:text-white resize-none shadow-xl transition-all duration-300 placeholder:text-gray-400"
                     disabled={isLoading || isUploading}
                     rows={1}
                     style={{
-                      minHeight: "56px",
-                      maxHeight: "120px",
+                      minHeight: "64px",
+                      maxHeight: "200px",
                     }}
                   />
-                </div>
-                <div>
-                  <button
-                    type="submit"
-                    disabled={isLoading || !inputValue.trim()}
-                    className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-2xl px-6 py-4 transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2 self-end h-fit"
-                  >
-                    {isLoading ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <Send size={16} />
-                    )}
-                    {uploadedFiles.length > 0 && uploadedFiles[0].mode === 'excel' ? 'Ask' : 'Send'}
-                  </button>
+                  <div className="absolute right-6 bottom-5 flex items-center gap-2">
+                    <button
+                      type="submit"
+                      disabled={isLoading || !inputValue.trim()}
+                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-xl p-2.5 transition-all duration-200 shadow-md hover:shadow-lg disabled:shadow-none flex items-center justify-center transform hover:scale-105 active:scale-95 transition-all"
+                    >
+                      {isLoading ? (
+                        <Loader2 size={20} className="animate-spin" />
+                      ) : (
+                        <Send size={20} />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center justify-center gap-4 mt-3 text-xs text-gray-500 dark:text-gray-400">
-                <span>• Natural language queries</span>
-                <span>• Real-time data filtering</span>
-                <span>• Professional formatting</span>
+              <div className="flex items-center justify-center gap-6 mt-4 text-[11px] text-gray-400 dark:text-gray-500 font-medium tracking-wide uppercase">
+                <span className="flex items-center gap-1.5"><Sparkles size={12} /> AI Powered Analysis</span>
+                <span className="flex items-center gap-1.5"><Database size={12} /> Secure Data Processing</span>
+                <span className="flex items-center gap-1.5"><FileSpreadsheet size={12} /> Professional Reports</span>
               </div>
             </form>
           </div>
