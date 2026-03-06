@@ -1,35 +1,56 @@
 import { NextRequest } from "next/server";
 import { executeQuery, getDatabaseSchema } from '@/lib/dataAccess';
 
-// Cloud AI helper — calls OpenRouter (works on Vercel)
+// Cloud AI helper — calls OpenRouter with fallback models (works on Vercel)
+const FREE_MODELS = [
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'meta-llama/llama-4-maverick:free',
+  'qwen/qwen3-coder-480b-a35b:free',
+  'nvidia/nemotron-nano-9b-v2:free',
+];
+
 async function callAI(messages: { role: string; content: string }[], temperature = 0.7): Promise<string> {
   const apiKey = process.env.SLM_API_KEY;
   const apiUrl = process.env.SLM_API_URL || 'https://openrouter.ai/api/v1/chat/completions';
 
   if (!apiKey) throw new Error('SLM_API_KEY is not set in environment variables');
 
-  const res = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-      'HTTP-Referer': 'https://slm-app.vercel.app',
-      'X-Title': 'SLM App',
-    },
-    body: JSON.stringify({
-      model: 'mistralai/mistral-7b-instruct:free',
-      messages,
-      temperature,
-    }),
-  });
+  let lastError: Error | null = null;
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`OpenRouter API error ${res.status}: ${errText}`);
+  for (const model of FREE_MODELS) {
+    try {
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'HTTP-Referer': 'https://slm-app.vercel.app',
+          'X-Title': 'SLM App',
+        },
+        body: JSON.stringify({ model, messages, temperature }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        // Try next model if this one has no endpoints
+        if (res.status === 404 || res.status === 503) {
+          console.warn(`Model ${model} unavailable, trying next...`);
+          lastError = new Error(`OpenRouter API error ${res.status}: ${errText}`);
+          continue;
+        }
+        throw new Error(`OpenRouter API error ${res.status}: ${errText}`);
+      }
+
+      const data = await res.json();
+      const content = data.choices?.[0]?.message?.content ?? '';
+      if (content) return content;
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`Model ${model} failed:`, err.message);
+    }
   }
 
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content ?? '';
+  throw lastError ?? new Error('All AI models failed to respond');
 }
 
 export async function POST(request: NextRequest) {
