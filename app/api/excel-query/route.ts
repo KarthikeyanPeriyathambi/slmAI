@@ -41,6 +41,9 @@ async function callAI(messages: { role: string; content: string }[], temperature
       }
 
       const data = await res.json();
+      if (data.usage) {
+        console.log(`📊 Token Usage [${model}]:`, data.usage);
+      }
       const content = data.choices?.[0]?.message?.content ?? '';
       if (content) return content;
     } catch (err: any) {

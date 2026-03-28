@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 import { executeQuery, getDatabaseSchema } from '@/lib/dataAccess';
+import pool from '@/lib/db';
+import { callExternalAPI, normalizeAPIResponse } from '@/lib/apiConnector';
 
 // Cloud AI helper — calls OpenRouter with fallback models (works on Vercel)
 const FREE_MODELS = [
@@ -43,6 +45,9 @@ async function callAI(messages: { role: string; content: string }[], temperature
       }
 
       const data = await res.json();
+      if (data.usage) {
+        console.log(`📊 Token Usage [${model}]:`, data.usage);
+      }
       const content = data.choices?.[0]?.message?.content ?? '';
       if (content) return content;
     } catch (err: any) {
@@ -54,10 +59,39 @@ async function callAI(messages: { role: string; content: string }[], temperature
   throw lastError ?? new Error('All AI models failed to respond');
 }
 
+/**
+ * Log queries for auditing and performance tracking
+ */
+async function logQuery(data: {
+  user_role?: string;
+  question: string;
+  sql_used?: string;
+  api_called?: string;
+  response_summary: string;
+  latency_ms: number;
+}) {
+  try {
+    await pool.execute(
+      'INSERT INTO query_logs (user_role, question, sql_used, api_called, response_summary, latency_ms) VALUES (?, ?, ?, ?, ?, ?)',
+      [
+        data.user_role || 'user',
+        data.question,
+        data.sql_used || null,
+        data.api_called || null,
+        data.response_summary.substring(0, 500),
+        data.latency_ms
+      ]
+    );
+  } catch (error) {
+    console.error('❌ Failed to log query:', error);
+  }
+}
+
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
   try {
     const body = await request.json();
-    const { messages } = body;
+    const { messages, userRole = 'user' } = body;
 
     // Validate messages
     if (!Array.isArray(messages) || messages.length === 0) {
@@ -293,7 +327,7 @@ export async function POST(request: NextRequest) {
     if (isDatabaseQuery && !isNonDatabaseQuery) {
       console.log("Handling as natural language database query");
       // Handle database-related queries with natural language processing
-      return await handleNaturalLanguageQuery(lastMessage.content, messages);
+      return await handleNaturalLanguageQuery(lastMessage.content, messages, userRole, startTime);
     }
 
     console.log("Sending request to OpenRouter AI...");
@@ -331,7 +365,6 @@ export async function POST(request: NextRequest) {
     } else if (typeof error === 'string') {
       errorMessage = error;
     }
-
     console.error("Error in chat API:", error);
     return new Response(
       JSON.stringify({
@@ -343,35 +376,26 @@ export async function POST(request: NextRequest) {
 }
 
 // Handle natural language database queries
-async function handleNaturalLanguageQuery(userQuery: string, conversationHistory: any[]) {
+async function handleNaturalLanguageQuery(userQuery: string, conversationHistory: any[], userRole: string = 'user', startTime: number = Date.now()) {
   try {
-    // Get database schema information
+    // 1. Get database schema information
     let schemaInfo = {};
     try {
       schemaInfo = await getDatabaseSchema();
     } catch (schemaError: any) {
       console.error("Error getting database schema:", schemaError);
-
-      // Handle specific authentication errors
-      if (schemaError.message.includes("Access denied")) {
-        return new Response(
-          JSON.stringify({
-            response: `⚠️ **Database Connection Error**: I couldn't connect to your MySQL database because the access was denied. 
-
-Please check your **.env** file and verify:
-• **DB_USER**: Is it correct? (usually 'root')
-• **DB_PASSWORD**: Is it correct? (many local setups have no password)
-• **DB_NAME**: Does the database '${process.env.DB_NAME}' exist?
-
-If you meant to use **Excel Analysis Mode**, please upload your file again to enable it.`
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } }
-        );
-      }
-      // Continue with empty schema - the AI might still be able to help with general SQL knowledge
     }
 
-    // Create a prompt for the AI to generate SQL based on natural language
+    // 2. Get active API Connectors
+    let apiConnectors: any[] = [];
+    try {
+      const [rows]: any = await pool.query('SELECT name, description, method FROM api_connectors WHERE is_active = 1');
+      apiConnectors = rows;
+    } catch (apiError) {
+      console.error("Error fetching API connectors:", apiError);
+    }
+
+    // 3. Create a comprehensive context for the AI
     const schemaDescription = Object.entries(schemaInfo)
       .map(([tableName, tableInfo]: [string, any]) => {
         const columns = tableInfo.columns || [];
@@ -383,171 +407,149 @@ If you meant to use **Excel Analysis Mode**, please upload your file again to en
       })
       .join('\n');
 
-    // Extract recent conversation context (last 3 exchanges) for better context
     let conversationContext = "";
     if (conversationHistory.length > 1) {
-      // Get the last 3 exchanges (6 messages = 3 user + 3 assistant)
       const recentMessages = conversationHistory.slice(-12);
       conversationContext = recentMessages
-        .filter(msg => msg.role !== "system") // Filter out system messages
+        .filter(msg => msg.role !== "system")
         .map(msg => `${msg.role.toUpperCase()}: ${msg.content}`)
         .join('\n');
     }
 
-    // Enhanced prompt with conversation context
+    // Build current context summary for the SLM
+    const contextPrompt = `
+    AVAILABLE DATA SOURCES:
+    
+    1. MYSQL DATABASE TABLES:
+    ${JSON.stringify(schemaInfo, null, 2)}
+    
+    2. EXTERNAL API CONNECTORS:
+    ${apiConnectors.length > 0 
+      ? apiConnectors.map((c: any) => `- NAME: "${c.name}" | URL: "${c.url}" | DESC: "${c.description || 'N/A'}"`).join('\n')
+      : 'No active API connectors found.'}
+
+    CONVERSATION RULES:
+    - If the user asks for data from a specific API (by Name or Description), use: CALL_API:{"name":"ConnectorName", "params":{...}}
+    - If the user asks for data in the MySQL database, use standard SQL.
+    - IMPORTANT: If the user refers to "previous data", "the file", "the API", or asks a follow-up question (e.g., "count them", "total for [column]"), refer to the MOST RECENT data source mentioned in the conversation.
+    - If the result of a previous CALL_API matched the user's intent, do not switch to SQL unless they ask for a database table.
+    - RESPOND ONLY WITH THE COMMAND (SQL OR CALL_API). NO EXTRA TEXT.
+    `;
+
     const aiPrompt = `
-You are a database expert that translates natural language queries into SQL queries. 
-Use the following database schema:
+${contextPrompt}
 
-${schemaDescription}
+${conversationContext ? `CONVERSATION SO FAR:\n${conversationContext}\n` : ''}
 
-${conversationContext ? `Previous conversation context:
-${conversationContext}
+USER QUESTION: "${userQuery}"
 
-` : ''}
-Important notes about the database:
-- Date fields are stored as VARCHAR, not DATE type
-- Common date formats in the database: 'YYYY-MM-DD'
-- When comparing dates, use STR_TO_DATE() function
-- For time-based queries, use functions like CURDATE(), DATE_SUB(), etc.
-
-Examples of natural language queries and their SQL translations:
-- "Show me all customers" -> SELECT * FROM customer WHERE is_deleted = 0
-- "List products added this week" -> SELECT * FROM products WHERE STR_TO_DATE(MfgDate, '%Y-%m-%d') >= DATE_SUB(CURDATE(), INTERVAL 1 WEEK) AND is_deleted = 0
-- "Find suppliers from New York" -> SELECT * FROM supplier WHERE city = 'New York'
-- "Show products that expire next month" -> SELECT * FROM products WHERE STR_TO_DATE(ExpiryDate, '%Y-%m-%d') BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 1 MONTH) AND is_deleted = 0
-
-User query: "${userQuery}"
-
-Please provide a valid SQL query that answers the user's request. 
-Respond ONLY with the SQL query and nothing else. No explanations, no reasoning, no extra text.
-Important guidelines:
-1. Always use SELECT statements for data retrieval
-2. Handle time-based queries appropriately using STR_TO_DATE for VARCHAR date fields
-3. Respect soft-delete patterns if is_deleted column exists (WHERE is_deleted = 0)
-4. Use appropriate date functions for temporal queries
-5. If the query is unclear or you cannot generate a valid SQL query, respond with "INVALID_QUERY".
+FINAL INSTRUCTION: Respond with ONLY the required SQL or CALL_API command.
 `;
 
-    console.log("Generating SQL with OpenRouter AI...");
-    const sqlQuery_raw = await callAI(
+    let aiResponse_raw = await callAI(
       [
-        { role: "system", content: "You are a database expert that translates natural language queries into SQL queries. Respond ONLY with the SQL query and nothing else. Always use proper SQL syntax, handle date/time queries correctly using STR_TO_DATE for VARCHAR date fields, and respect soft-delete patterns. Use MySQL-compatible functions." },
+        { role: "system", content: "You are a data assistant. Respond ONLY with a SQL query or a CALL_API command. No extra text." },
         { role: "user", content: aiPrompt }
       ],
       0.1
     );
 
-    let sqlQuery = sqlQuery_raw.trim();
-    console.log("AI generated SQL query:", sqlQuery);
+    let aiResponse = aiResponse_raw.trim().replace(/```sql/g, '').replace(/```json/g, '').replace(/```/g, '').trim();
+    console.log("AI Response:", aiResponse);
 
-    // Check if we got an empty response
-    if (!sqlQuery || sqlQuery.length === 0) {
-      return new Response(
-        JSON.stringify({
-          response: "I'm sorry, I couldn't generate a query for your request. Please try rephrasing or ask something like 'Show me all customers' or 'List products added this week'."
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    // 4. Handle API Call vs SQL Execution
+    let results: any = null;
+    let isApiCall = false;
+    let apiName = "";
+    let sqlQuery = "";
 
-    // Check if the AI couldn't generate a valid query
-    if (sqlQuery === "INVALID_QUERY" || sqlQuery.includes("INVALID_QUERY")) {
-      return new Response(
-        JSON.stringify({
-          response: "I'm sorry, I couldn't understand your query. Please try rephrasing or ask something like 'Show me all customers' or 'List products added this week'."
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    // Clean the SQL query - remove any markdown formatting or extra text
-    sqlQuery = sqlQuery.replace(/```sql/g, '').replace(/```/g, '').trim();
-
-    // Validate that it's a SELECT query for safety
-    if (!sqlQuery.toLowerCase().startsWith('select')) {
-      return new Response(
-        JSON.stringify({
-          response: "I can only help with data retrieval queries (SELECT statements). Please ask a question that involves retrieving data from the database."
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    console.log("Generated SQL query:", sqlQuery);
-
-    // Execute the generated SQL query
-    let results: any;
-    try {
-      results = await executeQuery(sqlQuery);
-    } catch (queryError: any) {
-      console.error("SQL execution error:", queryError);
-      // Try to provide a helpful error message
-      let errorMessage = queryError.message || "Unknown database error";
-
-      // Check for common SQL errors and provide better guidance
-      if (errorMessage.includes("Unknown column")) {
-        errorMessage = "I generated an invalid query with a column that doesn't exist. Please try rephrasing your question.";
-      } else if (errorMessage.includes("Table") && errorMessage.includes("doesn't exist")) {
-        errorMessage = "I generated an invalid query with a table that doesn't exist. Please check your question.";
-      } else if (errorMessage.includes("syntax")) {
-        errorMessage = "I generated an invalid SQL query due to syntax errors. Please try rephrasing your question.";
+    if (aiResponse.startsWith("CALL_API:")) {
+      isApiCall = true;
+      try {
+        const callDataStr = aiResponse.replace("CALL_API:", "").trim();
+        const callData = JSON.parse(callDataStr);
+        apiName = callData.name;
+        
+        const [connectors]: any = await pool.query('SELECT * FROM api_connectors WHERE name = ? AND is_active = 1', [callData.name]);
+        if (connectors.length === 0) throw new Error(`Connector ${callData.name} not found`);
+        
+        const result = await callExternalAPI(connectors[0], callData.params);
+        results = result.success ? normalizeAPIResponse(result.data) : null;
+        
+        if (!result.success) throw new Error(result.error || "API call failed");
+        
+        const endTime = Date.now();
+        logQuery({
+          user_role: userRole,
+          question: userQuery,
+          api_called: apiName,
+          response_summary: `Success (${Array.isArray(results) ? results.length : '1'} records)`,
+          latency_ms: endTime - startTime
+        });
+      } catch (err: any) {
+        const endTime = Date.now();
+        logQuery({
+          user_role: userRole,
+          question: userQuery,
+          api_called: apiName || "Unknown",
+          response_summary: `API Error: ${err.message}`,
+          latency_ms: endTime - startTime
+        });
+        return new Response(JSON.stringify({ response: `Failed to execute API call: ${err.message}` }), { status: 200 });
+      }
+    } else {
+      // 5. Handle SQL Query
+      sqlQuery = aiResponse;
+      if (sqlQuery === "INVALID_QUERY" || sqlQuery.includes("INVALID_QUERY")) {
+        return new Response(JSON.stringify({ response: "I'm sorry, I couldn't understand your query. Please try rephrasing." }), { status: 200 });
       }
 
-      return new Response(
-        JSON.stringify({
-          response: `I encountered a database error: ${errorMessage}`
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
+      if (!sqlQuery.toLowerCase().startsWith('select')) {
+        return new Response(JSON.stringify({ response: "I can only help with data retrieval queries." }), { status: 200 });
+      }
+
+      try {
+        results = await executeQuery(sqlQuery);
+      } catch (queryError: any) {
+        console.error("SQL execution error:", queryError);
+        let errorMessage = queryError.message || "Unknown database error";
+        return new Response(JSON.stringify({ response: `Database Error: ${errorMessage}` }), { status: 200 });
+      }
     }
 
-    // If results are empty, provide a friendly message
-    if (!results || (Array.isArray(results) && results.length === 0)) {
-      return new Response(
-        JSON.stringify({
-          response: "I found no data matching your query."
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    // Limit result size for better UX
-    const resultSize = JSON.stringify(results).length;
-    if (resultSize > 50000) { // ~50KB limit
-      return new Response(
-        JSON.stringify({
-          response: `I found ${Array.isArray(results) ? results.length : 'some'} records, but the results are too large to display. Try adding more specific filters to your query.`
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    // Format results in a more user-friendly way
+    // Format results in a more user-friendly way using AI summarization
     let formattedResponse = "";
 
-    if (Array.isArray(results) && results.length > 0) {
-      // For count queries (single row with single column)
-      if (results.length === 1 && Object.keys(results[0]).length === 1) {
-        const value = Object.values(results[0])[0];
-        const key = Object.keys(results[0])[0];
-        formattedResponse = `### ✅ Summary\nI found **${value}** ${key.replace(/_/g, ' ')} matching your query.\n`;
+    try {
+      // Create a summarized response using the AI, similar to Excel mode
+      formattedResponse = await summarizeResults(userQuery, results, isApiCall ? apiName : 'Database');
+    } catch (summaryError: any) {
+      console.error("Summary generation error:", summaryError);
+      // Fallback to basic summary if AI fails
+      if (Array.isArray(results) && results.length > 0) {
+        if (results.length === 1 && Object.keys(results[0]).length === 1) {
+          const value = Object.values(results[0])[0];
+          const key = Object.keys(results[0])[0];
+          formattedResponse = `### ✅ Summary\nI found **${value}** ${key.replace(/_/g, ' ')} matching your query.\n`;
+        } else {
+          formattedResponse = `### ✅ Summary\nI found **${results.length}** records matching your query.\n\n`;
+        }
+      } else {
+        formattedResponse = "### ❌ Result\nI found no data matching your query.";
       }
-      // For larger result sets, provide a summary with sample data
-      else {
-        formattedResponse = `### ✅ Summary\nI found **${results.length}** records matching your query.\n\n`;
-      }
-
-      formattedResponse += "\n### 💡 Key Insights\n- The data shown below reflects the current state of the database.\n- You can use the search bar to further filter these results.\n";
-
-      formattedResponse += "\n### 🔍 Suggested Follow-up Questions\n";
-      formattedResponse += "1. Can you show more details for the first record?\n";
-      formattedResponse += "2. Group these results by category.\n";
-      formattedResponse += "3. Export this data to CSV.\n";
-
-    } else {
-      formattedResponse = "### ❌ Result\nI found no data matching your query.";
     }
+
+    const endTime = Date.now();
+    const responseText = typeof formattedResponse === 'string' ? formattedResponse : "I found some data.";
+
+    // Async logging - don't wait for it
+    logQuery({
+      user_role: userRole,
+      question: userQuery,
+      sql_used: isApiCall ? `API: ${apiName}` : aiResponse,
+      response_summary: responseText.substring(0, 500),
+      latency_ms: endTime - startTime
+    });
 
     return new Response(
       JSON.stringify({
@@ -565,4 +567,42 @@ Important guidelines:
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
   }
+}
+
+/**
+ * Intelligent summarization of data results using AI
+ */
+async function summarizeResults(question: string, results: any, sourceName: string): Promise<string> {
+  const dataArray = Array.isArray(results) ? results : (results && typeof results === 'object' ? [results] : []);
+  if (dataArray.length === 0) return "I found no data matching your query.";
+
+  const sampleSize = 15;
+  const sampleData = dataArray.slice(0, sampleSize);
+  const totalCount = dataArray.length;
+  const headers = Object.keys(dataArray[0] || {});
+
+  const prompt = `
+    You are a professional Data Analyst assistant. A user asked: "${question}"
+    
+    The data source is: ${sourceName}
+    Total Records Found: ${totalCount}
+    Headers: ${headers.join(", ")}
+    
+    SAMPLE DATA (First ${sampleData.length} rows):
+    ${JSON.stringify(sampleData, null, 2)}
+    
+    INSTRUCTIONS:
+    1. Provide a direct, helpful answer to the user's question based on the data provided.
+    2. If the user asked for a count, total, average, or specific value, calculate it precisely using ALL rows (if it's simple to see from the sample or metadata) or mention the total records if you only have a sample.
+    3. IMPORTANT: Structure your response with these sections:
+       - Start with a direct answer or a concise table if relevant.
+       - "### ✅ Summary" explaining what was found.
+       - "### 💡 Key Insights" with 2-3 brief bullet points about patterns in the data.
+       - "### 🔍 Suggested Follow-up Questions" with 3-4 specific questions based on this data.
+    4. Keep the response professional but conversational.
+    5. Always format numbers clearly (e.g., $1,234.56).
+    6. If the data is empty or irrelevant to the question, explain why.
+  `;
+
+  return await callAI([{ role: "user", content: prompt }], 0.2);
 }

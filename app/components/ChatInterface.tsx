@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Send, Bot, User, Loader2, Database, Sparkles, Upload, FileSpreadsheet, CheckCircle, XCircle, Menu, X, Lightbulb, Search, MessageSquare, ArrowRight } from "lucide-react";
+import { Send, Bot, User, Loader2, Database, Sparkles, Upload, FileSpreadsheet, CheckCircle, XCircle, Menu, X, Lightbulb, Search, MessageSquare, ArrowRight, Settings, Plus, Trash2, Shield, Globe } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Components } from "react-markdown";
@@ -34,7 +34,59 @@ export default function ChatInterface() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const messagesEndRef = useRef<null | HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [userRole, setUserRole] = useState<'user' | 'admin'>('user');
+  const [connectors, setConnectors] = useState<any[]>([]);
+  const [showConnectorModal, setShowConnectorModal] = useState(false);
+  const [isConnectorLoading, setIsConnectorLoading] = useState(false);
+  const [newConnector, setNewConnector] = useState({ name: '', url: '', method: 'GET', description: '', auth_header: '' });
+  
   const hasInitialized = useRef(false);
+
+  // Fetch connectors on mount
+  useEffect(() => {
+    fetchConnectors();
+  }, []);
+
+  const fetchConnectors = async () => {
+    try {
+      const res = await fetch('/api/connectors');
+      if (res.ok) {
+        const data = await res.json();
+        setConnectors(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch connectors:', err);
+    }
+  };
+
+  const handleAddConnector = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsConnectorLoading(true);
+    try {
+      const res = await fetch('/api/connectors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newConnector),
+      });
+      if (res.ok) {
+        fetchConnectors();
+        setNewConnector({ name: '', url: '', method: 'GET', description: '', auth_header: '' });
+      }
+    } catch (err) {
+      console.error('Failed to add connector:', err);
+    } finally {
+      setIsConnectorLoading(false);
+    }
+  };
+
+  const handleDeleteConnector = async (id: number) => {
+    try {
+      const res = await fetch(`/api/connectors?id=${id}`, { method: 'DELETE' });
+      if (res.ok) fetchConnectors();
+    } catch (err) {
+      console.error('Failed to delete connector:', err);
+    }
+  };
 
 
   const scrollToBottom = () => {
@@ -50,96 +102,84 @@ export default function ChatInterface() {
 
   // Parse and format data responses
   const formatDataResponse = (content: string, data: any) => {
-    // Helper to render the text content if it exists and isn't a duplicate of the data description
-    const renderContent = () => {
+    const renderText = () => {
       if (!content) return null;
       return (
-        <div className="markdown-content text-sm text-gray-700 dark:text-gray-300 mb-2 overflow-x-auto">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {content}
-          </ReactMarkdown>
+        <div className="markdown-content text-sm text-gray-700 dark:text-gray-300 mb-4">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
         </div>
       );
     };
 
+    // If no data, just render text
+    if (!data) return renderText();
 
-    // Universal table support
-    if (data && Array.isArray(data.data)) {
-      const headers = data.headers || Object.keys(data.data[0] || {});
-      const MAX_DISPLAY = 100; // Limit for performance
-      const displayData = data.data.slice(0, MAX_DISPLAY);
-      const hasMore = data.data.length > MAX_DISPLAY;
+    // Normalize data structure
+    let tableData: any[] = [];
+    let tableHeaders: string[] = [];
+    let title = "Data Result";
 
-      return (
-        <div className="space-y-4 w-full animate-fadeIn">
-          {renderContent()}
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 tracking-widest uppercase">
-              <FileSpreadsheet size={14} />
-              <span>
-                {hasMore ? `Preview: ${MAX_DISPLAY} / ${data.data.length} records` : `DataSet: ${data.data.length} records`}
-              </span>
-            </div>
-          </div>
-          <div className="rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden bg-white dark:bg-gray-900/50">
-            <div className="overflow-x-auto custom-scrollbar" style={{ maxHeight: '400px' }}>
-              <table className="w-full border-collapse">
-                <thead className="sticky top-0 z-20 bg-gray-50 dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
-                  <tr>
-                    {headers.map((header: string, idx: number) => (
-                      <th key={idx} className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap min-w-[120px]">
-                        {String(header).replace(/_/g, ' ')}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50 font-sans">
-                  {displayData.map((row: any, rowIdx: number) => (
-                    <tr key={rowIdx} className="hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors">
-                      {headers.map((header: string, colIdx: number) => (
-                        <td key={colIdx} className="px-4 py-2.5 text-[12px] text-gray-700 dark:text-gray-300 border-r border-gray-50/50 dark:border-gray-800/20 last:border-r-0">
-                          {row[header] === null || row[header] === undefined ? <span className="text-gray-300 dark:text-gray-600 italic">-</span> : String(row[header])}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          {hasMore && (
-            <div className="bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-900/30 rounded-lg p-3 text-[10px] text-indigo-600 dark:text-indigo-400 font-medium text-center">
-              ⚠️ Showing first {MAX_DISPLAY} rows. Use specific filters to see more data.
-            </div>
-          )}
-        </div>
-      );
+    if (Array.isArray(data)) {
+      tableData = data;
+    } else if (data && Array.isArray(data.data)) {
+      tableData = data.data;
+      tableHeaders = data.headers || [];
+    } else if (data && typeof data === 'object') {
+      // Look for the first array property in the object (common in API responses like { posts: [...] })
+      const firstArrayKey = Object.keys(data).find(key => Array.isArray(data[key]));
+      if (firstArrayKey) {
+        tableData = data[firstArrayKey];
+        title = firstArrayKey.replace(/_/g, ' ');
+      } else {
+        // Single record or count result as an object
+        tableData = [data];
+      }
     }
 
-    // Handle uploaded file display (fallback)
-    if (data && data.headers && Array.isArray(data.data)) {
-      return (
-        <div className="space-y-3">
-          {renderContent()}
-          <div className="flex items-center gap-2 text-sm font-medium text-green-600 dark:text-green-400">
-            <CheckCircle size={16} />
-            <span>File Comparison View</span>
+    if (tableData.length === 0) return renderText();
+
+    // Extract headers if not provided
+    if (tableHeaders.length === 0 && tableData.length > 0) {
+      tableHeaders = Object.keys(tableData[0]);
+    }
+
+    const MAX_DISPLAY = 100;
+    const displayData = tableData.slice(0, MAX_DISPLAY);
+    const hasMore = tableData.length > MAX_DISPLAY;
+
+    return (
+      <div className="space-y-4 w-full animate-fadeIn">
+        {renderText()}
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-2 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 tracking-widest uppercase">
+            <FileSpreadsheet size={14} />
+            <span>
+              {tableData.length} Records {hasMore ? `(Showing ${MAX_DISPLAY})` : ""}
+            </span>
           </div>
-          {/* Table logic similar to above but for uploaded data specifically */}
-          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 w-full max-w-full" style={{ maxHeight: '350px' }}>
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700" style={{ minWidth: '600px' }}>
-              <thead className="bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+        </div>
+        <div className="rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden bg-white dark:bg-gray-900/50">
+          <div className="overflow-x-auto custom-scrollbar" style={{ maxHeight: '400px' }}>
+            <table className="w-full border-collapse">
+              <thead className="sticky top-0 z-20 bg-gray-50 dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
                 <tr>
-                  {data.headers.map((h: string) => (
-                    <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>
+                  {tableHeaders.map((header: string, idx: number) => (
+                    <th key={idx} className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap min-w-[120px]">
+                      {String(header).replace(/_/g, ' ')}
+                    </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {data.data.slice(0, 10).map((row: any, i: number) => (
-                  <tr key={i}>
-                    {data.headers.map((h: string) => (
-                      <td key={h} className="px-4 py-2 text-sm text-gray-600">{String(row[h])}</td>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50 font-sans">
+                {displayData.map((row: any, rowIdx: number) => (
+                  <tr key={rowIdx} className="hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors">
+                    {tableHeaders.map((header: string, colIdx: number) => (
+                      <td key={colIdx} className="px-4 py-2.5 text-[12px] text-gray-700 dark:text-gray-300 border-r border-gray-50/50 dark:border-gray-800/20 last:border-r-0">
+                        {row[header] === null || row[header] === undefined ? 
+                          <span className="text-gray-300 dark:text-gray-600 italic">-</span> : 
+                          String(row[header])
+                        }
+                      </td>
                     ))}
                   </tr>
                 ))}
@@ -147,147 +187,11 @@ export default function ChatInterface() {
             </table>
           </div>
         </div>
-      );
-    }
-
-    // If we have formatted data from the API, display it nicely
-    if (content.includes("I found the following data:") && data) {
-      // Check if it's a simple count result
-      if (Array.isArray(data) && data.length === 1 && Object.keys(data[0]).length === 1) {
-        const value = Object.values(data[0])[0];
-        const key = Object.keys(data[0])[0];
-        return (
-          <div className="space-y-3">
-            <div className="text-sm text-green-600 dark:text-green-400 font-medium">
-              Query Result:
-            </div>
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-              <div className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-                {String(value)}
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                {key.replace(/_/g, ' ')}
-              </div>
-            </div>
+        {hasMore && (
+          <div className="bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-900/30 rounded-lg p-3 text-[10px] text-indigo-600 dark:text-indigo-400 font-medium text-center">
+            ⚠️ Limit reached. Showing first {MAX_DISPLAY} rows.
           </div>
-        );
-      }
-
-      // For product lists and other structured data - show only important columns
-      if (Array.isArray(data)) {
-        // Define important columns for different table types based on common patterns
-        const getImportantColumns = (sampleRow: any) => {
-          const columns = Object.keys(sampleRow);
-
-          // Prioritize common important column patterns
-          const priorityPatterns = [
-            'id', 'name', 'title', 'description', 'price', 'cost', 'mrp', 'amount',
-            'stock', 'quantity', 'count', 'status', 'type', 'category'
-          ];
-
-          // Find columns that match priority patterns (case insensitive)
-          const priorityColumns = columns.filter(col =>
-            priorityPatterns.some(pattern =>
-              col.toLowerCase().includes(pattern)
-            )
-          );
-
-          // If we found priority columns, use up to 4 of them
-          if (priorityColumns.length > 0) {
-            return priorityColumns.slice(0, Math.min(4, priorityColumns.length));
-          }
-
-          // Fallback: use first 3-4 columns
-          return columns.slice(0, Math.min(4, columns.length));
-        };
-
-        const importantColumns = data.length > 0 ? getImportantColumns(data[0]) : [];
-
-        return (
-          <div className="space-y-3">
-            <div className="text-sm text-green-600 dark:text-green-400 font-medium">
-              Query Results ({data.length} records):
-            </div>
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden w-full max-w-full">
-              <div className="max-h-[400px] overflow-auto custom-scrollbar">
-                <div className="divide-y divide-gray-200 dark:divide-gray-700 min-w-full">
-                  {data.map((row: any, index: number) => (
-                    <div key={index} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-900">
-                      <div className="grid grid-cols-1 gap-2">
-                        {importantColumns.map((col) => (
-                          <div key={col} className="flex">
-                            <span className="font-medium text-gray-700 dark:text-gray-300 w-full">
-                              {col.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:
-                            </span>
-                            <span className="text-gray-600 dark:text-gray-400 ml-2">
-                              {row[col] === null ? (
-                                <span className="text-gray-400 dark:text-gray-500 italic">null</span>
-                              ) : (
-                                String(row[col])
-                              )}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      }
-    }
-
-    // For text-based responses from the AI
-    if (content.includes("I found the following data:") && !data) {
-      // Try to parse the content to see if it's JSON
-      try {
-        const lines = content.split('\n');
-        if (lines.length > 2) {
-          // Remove the first two lines ("I found the following data:" and empty line)
-          const dataLines = lines.slice(2);
-
-          // Check if it's a table format
-          if (dataLines[1] && dataLines[1].includes('---')) {
-            // Table format detected
-            const headers = dataLines[0].split(' | ').map(h => h.trim());
-            const rows = dataLines.slice(2).map(row => row.split(' | ').map(cell => cell.trim()));
-
-            // Show only first 3 columns for concise display
-            const displayHeaders = headers.slice(0, 3);
-            const displayRows = rows.map(row => row.slice(0, 3));
-
-            return (
-              <div className="space-y-3">
-                <div className="text-sm text-green-600 dark:text-green-400 font-medium">
-                  Query Results:
-                </div>
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-x-auto">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {dataLines.join('\n')}
-                  </ReactMarkdown>
-                </div>
-              </div>
-            );
-
-          }
-        }
-      } catch (e) {
-        // If parsing fails, fall back to markdown
-        return (
-          <div className="markdown-content">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
-          </div>
-        );
-      }
-
-    }
-
-    // Default fallback
-    return (
-      <div className="markdown-content">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+        )}
       </div>
     );
   };
@@ -319,6 +223,7 @@ export default function ChatInterface() {
         },
         body: JSON.stringify({
           messages: [...messages, { ...userMessage, content: userContent }],
+          userRole: userRole,
         }),
       });
 
@@ -334,7 +239,7 @@ export default function ChatInterface() {
         content: data.response,
         role: "assistant",
         timestamp: new Date(),
-        type: data.response.includes("I found the following data") ? "data" : "text",
+        type: (data.data) ? "data" : "text",
         data: data.data || null,
       };
 
@@ -638,6 +543,51 @@ export default function ChatInterface() {
           </div>
 
           <div className="space-y-6">
+            {/* Role Selection */}
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                <Shield size={16} className="text-indigo-500" />
+                Access Role
+              </h3>
+              <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
+                <button
+                  onClick={() => setUserRole('user')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${userRole === 'user' 
+                    ? 'bg-white dark:bg-gray-700 shadow-sm text-indigo-600 dark:text-indigo-400' 
+                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                >
+                  <User size={14} />
+                  User
+                </button>
+                <button
+                  onClick={() => setUserRole('admin')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${userRole === 'admin' 
+                    ? 'bg-white dark:bg-gray-700 shadow-sm text-indigo-600 dark:text-indigo-400' 
+                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                >
+                  <Shield size={14} />
+                  Admin
+                </button>
+              </div>
+            </div>
+
+            {/* Admin Controls */}
+            {userRole === 'admin' && (
+              <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                <button
+                  onClick={() => setShowConnectorModal(true)}
+                  className="w-full flex items-center justify-between p-3 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-all border border-indigo-100 dark:border-indigo-800/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <Globe size={18} />
+                    <span className="text-sm font-bold tracking-tight">API Connectors</span>
+                  </div>
+                  <div className="bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full">
+                    {connectors.length}
+                  </div>
+                </button>
+              </div>
+            )}
 
             {/* Mode Selection */}
             <div>
@@ -1052,6 +1002,149 @@ export default function ChatInterface() {
               </div>
             </form>
           </div>
+        </div>
+      </div>
+      <ConnectorModal 
+        isOpen={showConnectorModal} 
+        onClose={() => setShowConnectorModal(false)}
+        connectors={connectors}
+        onAdd={handleAddConnector}
+        onDelete={handleDeleteConnector}
+        newData={newConnector}
+        setNewData={setNewConnector}
+        isLoading={isConnectorLoading}
+      />
+    </div>
+  );
+}
+
+// Connector Management Modal
+function ConnectorModal({ 
+  isOpen, 
+  onClose, 
+  connectors, 
+  onAdd, 
+  onDelete,
+  newData,
+  setNewData,
+  isLoading
+}: any) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white dark:bg-gray-900 w-full max-w-2xl rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50 dark:bg-gray-900/50">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <Globe className="text-indigo-500" />
+              API Connectors
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Register and manage external data sources for the SLM</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+          {/* Add New Connector */}
+          <section>
+            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Register New Connector</h3>
+            <form onSubmit={onAdd} className="grid grid-cols-2 gap-4">
+              <div className="col-span-2 md:col-span-1 space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-500 uppercase ml-1">Name</label>
+                <input
+                  required
+                  placeholder="e.g., Salesforce Opportunity API"
+                  className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  value={newData.name}
+                  onChange={(e) => setNewData({ ...newData, name: e.target.value })}
+                />
+              </div>
+              <div className="col-span-2 md:col-span-1 space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-500 uppercase ml-1">Method</label>
+                <select
+                  className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  value={newData.method}
+                  onChange={(e) => setNewData({ ...newData, method: e.target.value })}
+                >
+                  <option value="GET">GET</option>
+                  <option value="POST">POST</option>
+                </select>
+              </div>
+              <div className="col-span-2 space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-500 uppercase ml-1">Endpoint URL</label>
+                <input
+                  required
+                  placeholder="https://api.service.com/v1/data"
+                  className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  value={newData.url}
+                  onChange={(e) => setNewData({ ...newData, url: e.target.value })}
+                />
+              </div>
+              <div className="col-span-2 space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-500 uppercase ml-1">Description (for AI context)</label>
+                <textarea
+                  placeholder="Describe what data this API provides..."
+                  className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all h-20 resize-none"
+                  value={newData.description}
+                  onChange={(e) => setNewData({ ...newData, description: e.target.value })}
+                />
+              </div>
+              <div className="col-span-2 space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-500 uppercase ml-1">Auth Header (Optional)</label>
+                <input
+                  placeholder="Authorization: Bearer my-token"
+                  className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-mono"
+                  value={newData.auth_header}
+                  onChange={(e) => setNewData({ ...newData, auth_header: e.target.value })}
+                />
+              </div>
+              <div className="col-span-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+                >
+                  {isLoading ? <Loader2 className="animate-spin" size={18} /> : <Plus size={18} />}
+                  Add API Connector
+                </button>
+              </div>
+            </form>
+          </section>
+
+          {/* List Connectors */}
+          <section>
+            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Active Connectors ({connectors.length})</h3>
+            <div className="space-y-3">
+              {connectors.length === 0 ? (
+                <div className="text-center py-10 bg-gray-50 dark:bg-gray-800/50 rounded-3xl border border-dashed border-gray-200 dark:border-gray-700">
+                  <p className="text-sm text-gray-500">No external APIs registered yet.</p>
+                </div>
+              ) : (
+                connectors.map((c: any) => (
+                  <div key={c.id} className="p-4 rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm flex items-center justify-between group">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-indigo-50 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                        <Globe size={18} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-gray-900 dark:text-white">{c.name}</h4>
+                        <p className="text-[10px] text-gray-500 dark:text-gray-400 font-mono mt-0.5 truncate max-w-[300px]">{c.url}</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => onDelete(c.id)}
+                      className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
         </div>
       </div>
     </div>
